@@ -1,0 +1,433 @@
+﻿@page "/finance/buyorders"
+@attribute [StreamRendering]
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using System.Text.Json
+@using System.Text
+@using System.Security.Claims
+@inject HttpClient Http
+@inject IConfiguration Configuration
+
+@inject IHttpClientFactory ClientFactory
+@inject IDbContextFactory<DataContext> DbFactory
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Buy Orders</PageTitle>
+
+@* Hidden file input that triggers the system photo/camera picker *@
+<InputFile id="receiptInput" OnChange="HandleReceiptSelected" class="d-none" accept="image/*" capture="environment" />
+
+@* 1. Compact Professional Header *@
+<div class="d-flex justify-content-between align-items-end mb-3">
+    <div>
+        <h1 class="h4 text-dark fw-semibold mb-0">Buy Orders</h1>
+        <p class="text-muted small mb-0">Listagem das listas de compras.</p>
+    </div>
+
+    <div class="d-flex gap-2">
+        @* Button that looks like the others but triggers the camera/upload *@
+        <label for="receiptInput" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm">
+            <i class="bi bi-camera"></i>
+            <span class="small fw-medium">Add Receipt</span>
+        </label>
+
+        <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenAddModal">
+            <i class="bi bi-plus-lg small"></i>
+            <span class="small fw-medium">New Order</span>
+        </button>
+    </div>
+</div>
+
+
+@if (isLoading)
+{
+    <div class="d-flex align-items-center gap-3 my-3 p-3 border-0 rounded-3 shadow-sm position-relative overflow-hidden"
+         style="background: linear-gradient(135deg, #f0f7ff 0%, #f9f5ff 100%); max-width: 450px;">
+
+        <div class="position-absolute top-0 start-0 w-100" style="height: 3px; background: linear-gradient(90deg, #0d6efd, #9b51e0, #0d6efd); background-size: 200% auto; animation: gradientMove 2s linear infinite;"></div>
+
+        <div class="spinner-grow text-primary flex-shrink-0" role="status" style="width: 1.8rem; height: 1.8rem;">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+
+        <div class="flex-grow-1">
+            <h6 class="text-dark fw-bold mb-0 d-flex align-items-center gap-2">
+                Processing Receipt
+                <span class="badge rounded-pill bg-purple-light text-purple small fw-normal px-2 py-1" style="background-color: #f3e8ff; color: #6b21a8; font-size: 0.75rem;">AI Syncing</span>
+            </h6>
+            <p class="text-secondary small mb-0" style="font-size: 0.825rem;">Gemini is analyzing your receipt layout...</p>
+        </div>
+    </div>
+}
+
+
+@if (buyOrderList == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    @* 2. Modern Table Styling *@
+    <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
+        <thead class="table-light text-secondary small text-uppercase tracking-wider">
+            <tr>
+                <th class="ps-3">Description</th>
+                <th class="text-end">Market</th>
+                <th class="text-end">Total</th>
+                <th class="text-center" style="width: 150px;">Date</th>
+                <th class="text-end pe-3" style="width: 150px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var buy in buyOrderList)
+            {
+                <tr class="@(deleteTargetId == buy.Id ? "table-danger-light" : "")">
+                    <td class="ps-3 fw-semibold">
+                        <NavLink href="@($"/finance/buyorder/{buy.Id}")" class="text-decoration-none text-primary">
+                            @buy.Description
+                        </NavLink>
+                    </td>
+                    <td class="text-end text-secondary">@buy.Market</td>
+                    <td class="text-end fw-medium">€@buy.Total.ToString("F2")</td>
+                    <td class="text-center text-muted small">@buy.Date.ToString("dd-MM-yyyy")</td>
+
+                    <td class="text-end pe-3">
+                        @* 3. Consistent Action Layout *@
+                        <div class="d-inline-flex align-items-center gap-2">
+                            @if (deleteTargetId == buy.Id)
+                            {
+                                <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
+                                    <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(buy.Id)">
+                                        <i class="bi bi-trash-fill me-1"></i> Delete
+                                    </button>
+                                    <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
+                                        @onclick="() => RequestDelete(buy.Id)">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);" @onclick="CloseModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true" style="max-width: 450px;">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+                <div class="modal-header bg-light border-bottom-0 py-3 px-4">
+                    <h5 class="modal-title fw-bold text-dark fs-6">New Purchase Order</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body px-4 py-3">
+                    <EditForm Model="@NewOrder" OnValidSubmit="@SaveOrder">
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium text-secondary mb-1">Description</label>
+                            <InputText @bind-Value="NewOrder.Description" class="form-control form-control-sm" placeholder="e.g. Monthly Groceries" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium text-secondary mb-1">Market</label>
+                            <InputText @bind-Value="NewOrder.Market" class="form-control form-control-sm" placeholder="e.g. Pingo Doce" />
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
+                            <button type="button" class="btn btn-sm btn-light border" @onclick="CloseModal">Cancel</button>
+                            <button type="submit" class="btn btn-sm btn-primary">Save Order</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+
+
+
+@code {
+    private List<BuyOrder>? buyOrderList;
+    private bool IsVisible { get; set; }
+    private BuyOrder NewOrder { get; set; } = new();
+    private int deleteTargetId = 0;
+    private bool isLoading = false;
+
+    // NOVO: Propriedades para controlo de Contexto e Sessão
+    private int loggedUserId;
+    private int userGroupId;
+    private bool hasGroup = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserSessionData();
+        await FetchData();
+    }
+
+
+    private async Task LoadUserSessionData()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            // Extrai o ID do Utilizador
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdStr, out int userId))
+            {
+                loggedUserId = userId;
+            }
+
+            // Extrai o ID do Grupo (se existir)
+            var groupIdStr = user.FindFirst(ClaimTypes.GroupSid)?.Value;
+            if (!string.IsNullOrEmpty(groupIdStr) && int.TryParse(groupIdStr, out int groupId))
+            {
+                userGroupId = groupId;
+                hasGroup = true;
+            }
+        }
+    }
+
+    // private async Task LoadOrders()
+    // {
+    //     using var db = await DbFactory.CreateDbContextAsync();
+    //     buyOrderList = await db.BuyOrders.OrderByDescending(x => x.Date).ToListAsync();
+    // }
+
+    private async Task FetchData()
+    {
+        if (loggedUserId == 0) return; // Utilizador não autenticado de forma válida
+
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        // Iniciamos a query incluindo os sub-itens das linhas
+        var query = db.BuyOrders.Include(e => e.Lines).AsQueryable();
+
+        // MODIFICAÇÃO PRINCIPAL: Regra Solo vs Grupo
+        if (hasGroup)
+        {
+            // MODO GRUPO: Carrega despesas cujo UserId pertença à lista de membros do grupo ativo
+            var membrosDoGrupo = db.GroupUsers
+                .Where(gu => gu.GroupId == userGroupId)
+                .Select(gu => gu.UserId);
+
+            query = query.Where(e => membrosDoGrupo.Contains(e.UserId));
+        }
+        else
+        {
+            // MODO SOLO: Carrega estritamente as despesas do utilizador logado
+            query = query.Where(e => e.UserId == loggedUserId);
+        }
+
+        buyOrderList = await query.OrderByDescending(e => e.Date).ToListAsync();
+    }
+
+    private void OpenAddModal()
+    {
+        NewOrder = new BuyOrder
+        {
+            Date = DateTime.Now
+        };
+        IsVisible = true;
+    }
+
+    private void CloseModal() => IsVisible = false;
+
+    private async Task SaveOrder()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        NewOrder.UserId = loggedUserId;
+        NewOrder.GroupId = userGroupId;
+        db.BuyOrders.Add(NewOrder);
+        await db.SaveChangesAsync();
+
+        CloseModal();
+        await FetchData();
+    }
+
+    private void RequestDelete(int id) => deleteTargetId = id;
+    private void CancelDelete() => deleteTargetId = 0;
+
+    private async Task ConfirmDelete(int buyorderId)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        // Start transaction to prevent partial deletes
+        using var transaction = await db.Database.BeginTransactionAsync();
+
+        try
+        {
+            // 1. Delete all lines first (The children)
+            // We use ExecuteSqlRaw to bypass tracking issues entirely
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM BuyOrderLines WHERE BuyOrderId = {0}", buyorderId);
+
+            // 2. Delete the order (The parent)
+            await db.Database.ExecuteSqlRawAsync("DELETE FROM BuyOrders WHERE Id = {0}", buyorderId);
+
+            await transaction.CommitAsync();
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.WriteLine($"Critical Delete Error: {ex.Message}");
+        }
+
+        deleteTargetId = 0;
+        await FetchData();
+    }
+
+    private async Task HandleReceiptSelected(InputFileChangeEventArgs e)
+    {
+        // 1. Activate loading interface
+        isLoading = true;
+        StateHasChanged(); // Force immediate UI refresh
+
+        try
+        {
+
+            var http = ClientFactory.CreateClient();
+            var file = e.File;
+            using var ms = new MemoryStream();
+            await file.OpenReadStream(4194304).CopyToAsync(ms);
+
+            // Convert image to Base64
+            var base64Image = Convert.ToBase64String(ms.ToArray());
+            var apiKey = Configuration["Gemini:ApiKey"]; // Ensure this is in appsettings
+
+            string prompt = @"Extract information from this receipt.
+                                Return a JSON object with this structure:
+                                {
+                                  ""Market"": ""string"",
+                                  ""Date"": ""yyyy-MM-dd"",
+                                  ""Total"": ""float"",
+                                  ""Items"": [
+                                    { ""Description"": ""string"", ""Price"": float, ""Quantity"": float, ""Unit"": ""string"" }
+                                  ]
+                                }";
+
+            // Prepare the payload for Gemini API
+            var requestBody = new
+            {
+                contents = new[] {
+                    new {
+                        parts = new object[] {
+                            new { text = prompt },
+                            new { inline_data = new { mime_type = "image/jpeg", data = base64Image } }
+                        }
+                    }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            // string url = $"{apiKey}";
+            // Call the REST API
+            var response = await http.PostAsync($"https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key={apiKey}", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                var result = JsonSerializer.Deserialize<GeminiModel.GeminiResponse>(jsonResponse);
+                string rawJson = "";
+                if (result != null)
+                {
+                    rawJson = result.candidates[0].content.parts[0].text;
+                }
+
+                // Trigger the save logic
+                await ProcessAndSaveReceipt(rawJson);
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"API Error: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Processing error encountered: {ex.Message}");
+        }
+        finally
+        {
+            // 2. Shut off loading interface once complete or errored out
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ProcessAndSaveReceipt(string rawJson)
+    {
+        if (rawJson == "")
+        {
+            Console.WriteLine($"Error JSON empty, check the code again!");
+            return;
+        }
+
+        string cleanedJson = rawJson.Replace("```json", "").Replace("```", "").Trim();
+        var receipt = JsonSerializer.Deserialize<GeminiModel.ReceiptData>(cleanedJson);
+
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        if (receipt != null)
+        {
+            // 1. Save Header First (Simple, no tracking issues)
+            var newOrder = new BuyOrder
+            {
+                Description = "Compra " + receipt.Market ?? "",
+                Market = receipt.Market ?? "",
+                Date = DateTime.TryParse(receipt.Date, out var d) ? d : DateTime.Now,
+                Total = receipt.Total,
+                ListId = 0,
+                UserId = loggedUserId,
+                GroupId = userGroupId
+            };
+            db.BuyOrders.Add(newOrder);
+            await db.SaveChangesAsync();
+
+            // 2. Clear everything from memory
+            db.ChangeTracker.Clear();
+
+            // 3. Process Lines
+            foreach (var item in receipt.Items)
+            {
+                // Get product as a simple detached object
+                // var product = await db.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Name == item.Description);
+
+                // if (product == null)
+                // {
+                //     product = new Product { Name = item.Description, Price = item.Price, KCal = 0 };
+                //     db.Products.Add(product);
+                //     await db.SaveChangesAsync();
+                // }
+
+                // await db.Database.ExecuteSqlRawAsync(
+                // "INSERT INTO BuyOrderLines (BuyOrderId, ProductId, Description, Quantity, Price, ExpireDate, Batch, Unit) VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7})",
+                // newOrder.Id, product.Id, item.Description ?? "", item.Quantity, item.Price, DateTime.Now.AddDays(7), "N/A", item.Unit ?? ""
+                // );
+
+                await db.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO BuyOrderLines (BuyOrderId, ProductId, Description, Quantity, Price, ExpireDate, Batch, Unit, UserId, GroupId) VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7},{8},{9})",
+                    newOrder.Id, 0, item.Description ?? "", item.Quantity, item.Price, DateTime.Now.AddDays(7), "N/A", item.Unit ?? "", loggedUserId, userGroupId
+                );
+            }
+
+            await db.SaveChangesAsync();
+            await FetchData();
+        }
+        
+    }
+}

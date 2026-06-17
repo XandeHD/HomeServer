@@ -1,0 +1,734 @@
+﻿@page "/profile"
+@rendermode InteractiveServer
+@using HomeServer.Data.Models
+@inject HomeServer.Classes.Services.Theme ThemeService
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<DataContext> DbFactory
+@inject NavigationManager NavManager
+
+<PageTitle>Profile Settings - Home Server</PageTitle>
+
+<div class="container mt-4" style="max-width: 600px;">
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white p-3">
+            <h5 class="mb-0 fw-bold">Account Settings</h5>
+        </div>
+        <div class="card-body p-4">
+
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="alert alert-success small p-2 text-center mb-3">@successMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger small p-2 text-center mb-3">@errorMessage</div>
+            }
+
+            @* CORREÇÃO: Adicionado @onsubmit:preventDefault="true" para evitar o reload da página *@
+            <form @onsubmit="HandlePasswordChange" @onsubmit:preventDefault="true" novalidate>
+                <div class="mb-3">
+                    <label class="form-label small fw-medium text-muted">Username</label>
+                    <input type="text" class="form-control bg-light" value="@currentUsername" readonly />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label small fw-medium text-muted">Email Address</label>
+                    <input type="email" class="form-control @(string.IsNullOrEmpty(emailError) ? "" : "is-invalid")" @bind="email" @bind:event="oninput" required placeholder="name@example.com" />
+                    @if (!string.IsNullOrEmpty(emailError))
+                    {
+                        <div class="invalid-feedback">@emailError</div>
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <h6 class="fw-bold mb-3 text-secondary">Interface Customization</h6>
+                    <div class="mt-1">
+                        <label class="form-label small fw-medium text-muted">Select App Theme Color (Saves on Submit)</label>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button type="button" class="btn btn-sm text-white px-3 fw-medium @(selectedTheme == "default" ? "border-dark border-2" : "")" style="background-color: #0D6EFD; border-color: #0D6EFD;" @onclick='() => ChangeTheme("default")'>
+                                Default (Azul)
+                            </button>
+                            <button type="button" class="btn btn-sm text-white px-3 fw-medium @(selectedTheme == "vermelho" ? "border-dark border-2" : "")" style="background-color: #b91c1c; border-color: #b91c1c;" @onclick='() => ChangeTheme("vermelho")'>
+                                Vermelho
+                            </button>
+                            <button type="button" class="btn btn-sm text-white px-3 fw-medium @(selectedTheme == "verde" ? "border-dark border-2" : "")" style="background-color: #198754; border-color: #198754;" @onclick='() => ChangeTheme("verde")'>
+                                Verde
+                            </button>
+                            <button type="button" class="btn btn-sm text-dark px-3 fw-medium @(selectedTheme == "amarelo" ? "border-dark border-2" : "")" style="background-color: #d9a406; border-color: #d9a406;" @onclick='() => ChangeTheme("amarelo")'>
+                                Amarelo
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                @* --- SECÇÃO: GESTÃO / CRIAÇÃO DE GRUPOS --- *@
+                <hr class="my-4" />
+                <h6 class="fw-bold mb-3 text-secondary">Group Management</h6>
+
+                @if (userGroup == null)
+                {
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="card h-100 p-3 border border-dashed text-center">
+                                <p class="text-muted small mb-3">Create a brand new group and invite your friends.</p>
+                                <button type="button" class="btn btn-outline-dark btn-sm fw-medium px-3 mt-auto" @onclick="OpenGroupModal">
+                                    <i class="bi bi-plus-lg me-1"></i> Create New Group
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="col-sm-6">
+                            <div class="card h-100 p-3 border border-dashed text-center">
+                                <p class="text-muted small mb-2">Have an invite code? Type it below to join instantly.</p>
+                                <div class="input-group input-group-sm mt-auto">
+                                    <input type="text" class="form-control font-monospace text-uppercase @(string.IsNullOrEmpty(joinGroupError) ? "" : "is-invalid")"
+                                           @bind="groupCodeToJoin" placeholder="e.g., X8A2B9" />
+                                    <button class="btn btn-success" type="button" @onclick="HandleJoinGroup">Join</button>
+                                </div>
+                                @if (!string.IsNullOrEmpty(joinGroupError))
+                                {
+                                    <span class="text-danger small d-block mt-1 text-start" style="font-size: 0.75rem;">@joinGroupError</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="card bg-light border-0 p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-dark mb-0" style="font-size: 1.05rem;">
+                                <i class="bi bi-people-fill me-2"></i>@userGroup.Name
+                            </span>
+                            <span class="badge bg-secondary font-monospace small">ID: @userGroup.Id</span>
+                        </div>
+                        <p class="text-muted small mb-3">Created by <b>@userGroup.CreatedBy</b> on @userGroup.CreatedAt.ToString("dd/MM/yyyy")</p>
+
+                        @* CÓDIGO DE ACESSO AO GRUPO *@
+                        <div class="p-2 mb-3 bg-white border rounded d-flex justify-content-between align-items-center shadow-sm">
+                            <div>
+                                <span class="text-muted small d-block" style="font-size: 0.7rem; text-transform: uppercase; font-weight: bold;">Group Invite Code</span>
+                                <span class="font-monospace fw-bold text-primary fs-5">@userGroup.InviteCode</span>
+                            </div>
+                            @if (userGroup.CreatedById == currentUserId)
+                            {
+                                <button type="button" class="btn btn-sm btn-link text-decoration-none text-muted p-0" title="Regenerate Code" @onclick="HandleRegenerateCode">
+                                    <i class="bi bi-arrow-clockwise fs-5"></i>
+                                </button>
+                            }
+                        </div>
+
+                        <h6 class="small fw-bold text-muted mb-2">Group Members</h6>
+                        <ul class="list-group list-group-flush shadow-sm rounded mb-3" style="max-height: 200px; overflow-y: auto;">
+                            @foreach (var member in groupMembers)
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3 small">
+                                    <span><i class="bi bi-person me-2"></i>@member.Username</span>
+
+                                    @if (member.Id == userGroup.CreatedById)
+                                    {
+                                        <span class="badge bg-dark text-white p-1 px-2" style="font-size: 0.65rem;">Owner</span>
+                                    }
+                                    @if (userGroup.CreatedById == currentUserId && member.Id != currentUserId)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-outline-danger border-0 p-1 py-0" title="Remove Member" @onclick="() => HandleRemoveMember(member.Id)">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    }
+                                </li>
+                            }
+                        </ul>
+
+                        @if (userGroup.CreatedById != currentUserId)
+                        {
+                            <div class="d-grid mt-2">
+                                <button type="button" class="btn btn-sm btn-outline-danger fw-medium" @onclick="HandleLeaveGroup">
+                                    <i class="bi bi-box-arrow-right me-1"></i> Leave Group
+                                </button>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <hr class="my-4" />
+                <h6 class="fw-bold mb-3 text-secondary">Change Password</h6>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-medium text-muted">Current Password</label>
+                    <div class="input-group">
+                        <input type="@(showCurrentPassword ? "text" : "password")"
+                               class="form-control @(string.IsNullOrEmpty(currentPasswordError) ? "" : "is-invalid")"
+                               @bind="currentPassword"
+                               @bind:event="oninput"
+                               placeholder="Enter current password"
+                               onkeydown="if(event.key === 'Enter') event.preventDefault();" />
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => showCurrentPassword = !showCurrentPassword">
+                            @(showCurrentPassword ? "Hide" : "Show")
+                        </button>
+                        @if (!string.IsNullOrEmpty(currentPasswordError))
+                        {
+                            <div class="invalid-feedback">@currentPasswordError</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-medium text-muted">New Password</label>
+                    <div class="input-group">
+                        <input type="@(showNewPassword ? "text" : "password")"
+                               class="form-control @(string.IsNullOrEmpty(newPasswordError) ? "" : "is-invalid")"
+                               @bind="newPassword"
+                               @bind:event="oninput"
+                               placeholder="Enter new password"
+                               onkeydown="if(event.key === 'Enter') event.preventDefault();" />
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => showNewPassword = !showNewPassword">
+                            @(showNewPassword ? "Hide" : "Show")
+                        </button>
+                        @if (!string.IsNullOrEmpty(newPasswordError))
+                        {
+                            <div class="invalid-feedback">@newPasswordError</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-medium text-muted">Confirm New Password</label>
+                    <div class="input-group">
+                        <input type="@(showConfirmPassword ? "text" : "password")"
+                               class="form-control @(string.IsNullOrEmpty(confirmPasswordError) ? "" : "is-invalid")"
+                               @bind="confirmPassword"
+                               @bind:event="oninput"
+                               placeholder="Confirm new password"
+                               onkeydown="if(event.key === 'Enter') event.preventDefault();" />
+                        <button type="button" class="btn btn-outline-secondary" @onclick="() => showConfirmPassword = !showConfirmPassword">
+                            @(showConfirmPassword ? "Hide" : "Show")
+                        </button>
+                        @if (!string.IsNullOrEmpty(confirmPasswordError))
+                        {
+                            <div class="invalid-feedback">@confirmPasswordError</div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(newPassword))
+                {
+                    <div class="mb-4">
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar @StrengthColorClass" role="progressbar" style="width: @(StrengthPercent)%;"></div>
+                        </div>
+                        <span class="small text-muted" style="font-size: 0.75rem;">Password Strength: <b>@StrengthLabel</b></span>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-4"></div>
+                }
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary fw-medium px-4">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@* --- MODAL BOOTSTRAP PARA CRIAR GRUPO --- *@
+@if (isGroupModalOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 450px;">
+            <div class="modal-content shadow">
+                <div class="modal-header bg-dark text-white py-2 px-3">
+                    <h6 class="modal-title fw-bold">Create New Group</h6>
+                    <button type="button" class="btn-close btn-close-white small" @onclick="CloseGroupModal"></button>
+                </div>
+                <div class="modal-content-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-medium text-muted">Group Name</label>
+                        <input type="text" class="form-control @(string.IsNullOrEmpty(groupNameError) ? "" : "is-invalid")"
+                               @bind="newGroupName" placeholder="e.g., Family, Friends" />
+                        @if (!string.IsNullOrEmpty(groupNameError))
+                        {
+                            <div class="invalid-feedback">@groupNameError</div>
+                        }
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-sm btn-light border px-3" @onclick="CloseGroupModal">Cancel</button>
+                        <button type="button" class="btn btn-sm btn-success px-3" @onclick="HandleCreateGroup">Create Group</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private string currentUsername = string.Empty;
+    private int currentUserId = 0;
+    private string email = string.Empty;
+    private string selectedTheme = "default";
+
+    private string currentPassword = string.Empty;
+    private string newPassword = string.Empty;
+    private string confirmPassword = string.Empty;
+
+    // Estado de Controlo de Grupos
+    private Group? userGroup = null;
+    private List<User> groupMembers = new();
+    private bool isGroupModalOpen = false;
+    private string newGroupName = string.Empty;
+    private string groupNameError = string.Empty;
+    private string groupCodeToJoin = string.Empty;
+    private string joinGroupError = string.Empty;
+
+    private string GenerateRandomCode(int length = 6)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        var random = new Random();
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(s => s[random.Next(s.Length)]).ToArray());
+    }
+
+    // Visibility toggles
+    private bool showCurrentPassword = false;
+    private bool showNewPassword = false;
+    private bool showConfirmPassword = false;
+
+    // Alerts
+    private string successMessage = string.Empty;
+    private string errorMessage = string.Empty;
+
+    // Validation fields
+    private string emailError = string.Empty;
+    private string currentPasswordError = string.Empty;
+    private string newPasswordError = string.Empty;
+    private string confirmPasswordError = string.Empty;
+
+    private int PasswordStrengthScore
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(newPassword)) return 0;
+            int score = 0;
+            if (newPassword.Length >= 6) score++;
+            if (newPassword.Length >= 10) score++;
+            if (newPassword.Any(char.IsUpper) && newPassword.Any(char.IsLower)) score++;
+            if (newPassword.Any(char.IsDigit) || newPassword.Any(ch => !char.IsLetterOrDigit(ch))) score++;
+            return score;
+        }
+    }
+
+    private int StrengthPercent => PasswordStrengthScore * 25;
+
+    private string StrengthLabel => PasswordStrengthScore switch
+    {
+        1 => "Too Weak",
+        2 => "Weak",
+        3 => "Medium",
+        4 => "Strong",
+        _ => "Too Weak"
+    };
+
+    private string StrengthColorClass => PasswordStrengthScore switch
+    {
+        1 => "bg-danger",
+        2 => "bg-warning",
+        3 => "bg-info",
+        4 => "bg-success",
+        _ => "bg-danger"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            currentUsername = authState.User.Identity?.Name ?? string.Empty;
+
+            if (!string.IsNullOrEmpty(currentUsername))
+            {
+                await LoadUserDataAndGroupAsync();
+            }
+        }
+    }
+
+    private async Task LoadUserDataAndGroupAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == currentUsername.ToLower());
+
+        if (user != null)
+        {
+            currentUserId = user.Id;
+            email = user.Email ?? string.Empty;
+            selectedTheme = string.IsNullOrEmpty(user.Theme) ? "default" : user.Theme;
+            ThemeService.SetTheme(selectedTheme);
+
+            var userGroupRelation = await db.GroupUsers.FirstOrDefaultAsync(gu => gu.UserId == user.Id);
+            if (userGroupRelation != null)
+            {
+                userGroup = await db.Groups.FirstOrDefaultAsync(g => g.Id == userGroupRelation.GroupId);
+
+                if (userGroup != null)
+                {
+                    var memberIds = await db.GroupUsers
+                        .Where(gu => gu.GroupId == userGroup.Id)
+                        .Select(gu => gu.UserId)
+                        .ToListAsync();
+
+                    groupMembers = await db.Users
+                        .Where(u => memberIds.Contains(u.Id))
+                        .ToListAsync();
+                }
+            }
+            else
+            {
+                userGroup = null;
+                groupMembers.Clear();
+            }
+        }
+    }
+
+    private void OpenGroupModal()
+    {
+        newGroupName = string.Empty;
+        groupNameError = string.Empty;
+        isGroupModalOpen = true;
+    }
+
+    private void CloseGroupModal()
+    {
+        isGroupModalOpen = false;
+    }
+
+    private async Task HandleCreateGroup()
+    {
+        groupNameError = string.Empty;
+        ClearValidationStates();
+
+        if (string.IsNullOrWhiteSpace(newGroupName))
+        {
+            groupNameError = "Group name cannot be empty.";
+            return;
+        }
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            var checkRelation = await db.GroupUsers.AnyAsync(gu => gu.UserId == currentUserId);
+            if (checkRelation)
+            {
+                groupNameError = "You already belong to a group and cannot create another one.";
+                CloseGroupModal();
+                return;
+            }
+
+            var newGroup = new Group
+            {
+                Name = newGroupName.Trim(),
+                CreatedAt = DateTime.Now,
+                CreatedById = currentUserId,
+                CreatedBy = currentUsername,
+                InviteCode = GenerateRandomCode(6)
+            };
+
+            db.Groups.Add(newGroup);
+            await db.SaveChangesAsync();
+
+            var groupUserAssociation = new GroupUser
+            {
+                GroupId = newGroup.Id,
+                UserId = currentUserId,
+                Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            };
+
+            db.GroupUsers.Add(groupUserAssociation);
+            await db.SaveChangesAsync();
+
+            successMessage = $"Group '{newGroupName}' created successfully! Code: {newGroup.InviteCode}";
+            CloseGroupModal();
+
+            await LoadUserDataAndGroupAsync();
+        }
+        catch (Exception ex)
+        {
+            groupNameError = "Error saving group to database.";
+            errorMessage = $"An unexpected error occurred: {ex.Message}";
+        }
+    }
+
+    private async Task HandleJoinGroup()
+    {
+        joinGroupError = string.Empty;
+        successMessage = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(groupCodeToJoin))
+        {
+            joinGroupError = "Please enter a code.";
+            return;
+        }
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            var userAlreadyInGroup = await db.GroupUsers.AnyAsync(gu => gu.UserId == currentUserId);
+            if (userAlreadyInGroup)
+            {
+                joinGroupError = "You already belong to a group.";
+                return;
+            }
+
+            var targetGroup = await db.Groups.FirstOrDefaultAsync(g => g.InviteCode.ToLower() == groupCodeToJoin.Trim().ToLower());
+            if (targetGroup == null)
+            {
+                joinGroupError = "Invalid code. Group not found.";
+                return;
+            }
+
+            var newAssociation = new GroupUser
+            {
+                GroupId = targetGroup.Id,
+                UserId = currentUserId,
+                Date = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            };
+
+            db.GroupUsers.Add(newAssociation);
+            await db.SaveChangesAsync();
+
+            successMessage = $"Successfully joined group '{targetGroup.Name}'!";
+            groupCodeToJoin = string.Empty;
+
+            await LoadUserDataAndGroupAsync();
+        }
+        catch (Exception ex)
+        {
+            joinGroupError = "Error joining the group.";
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+    }
+
+    private async Task HandleRegenerateCode()
+    {
+        if (userGroup == null || userGroup.CreatedById != currentUserId) return;
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            var group = await db.Groups.FirstOrDefaultAsync(g => g.Id == userGroup.Id);
+
+            if (group != null)
+            {
+                group.InviteCode = GenerateRandomCode(6);
+                await db.SaveChangesAsync();
+
+                userGroup.InviteCode = group.InviteCode;
+                successMessage = $"New invite code generated successfully: {userGroup.InviteCode}";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error updating code: {ex.Message}";
+        }
+    }
+
+    private async Task HandleRemoveMember(int memberId)
+    {
+        if (userGroup == null || userGroup.CreatedById != currentUserId) return;
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            var association = await db.GroupUsers
+                .FirstOrDefaultAsync(gu => gu.GroupId == userGroup.Id && gu.UserId == memberId);
+
+            if (association != null)
+            {
+                await ResetUserGroupRecordsAsync(db, memberId, userGroup.Id);
+
+                db.GroupUsers.Remove(association);
+                await db.SaveChangesAsync();
+
+                successMessage = "Member removed from the group successfully.";
+
+                await LoadUserDataAndGroupAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error removing member: {ex.Message}";
+        }
+    }
+
+    private async Task HandleLeaveGroup()
+    {
+        if (userGroup == null || userGroup.CreatedById == currentUserId) return;
+
+        try
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+
+            var association = await db.GroupUsers
+                .FirstOrDefaultAsync(gu => gu.GroupId == userGroup.Id && gu.UserId == currentUserId);
+
+            if (association != null)
+            {
+                await ResetUserGroupRecordsAsync(db, currentUserId, userGroup.Id);
+
+                db.GroupUsers.Remove(association);
+                await db.SaveChangesAsync();
+
+                successMessage = $"You have left the group '{userGroup.Name}'.";
+
+                userGroup = null;
+                groupMembers.Clear();
+
+                await LoadUserDataAndGroupAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error leaving group: {ex.Message}";
+        }
+    }
+
+    private async Task HandlePasswordChange()
+    {
+        ClearValidationStates();
+        using var db = await DbFactory.CreateDbContextAsync();
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == currentUsername.ToLower());
+
+        if (user == null)
+        {
+            errorMessage = "User session not found.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(email) || !email.Contains("@"))
+        {
+            emailError = "Please enter a valid email address.";
+            return;
+        }
+
+        user.Email = email;
+        user.Theme = selectedTheme;
+
+        bool changingPassword = !string.IsNullOrEmpty(currentPassword) ||
+                                 !string.IsNullOrEmpty(newPassword) ||
+                                 !string.IsNullOrEmpty(confirmPassword);
+
+        if (changingPassword)
+        {
+            bool hasValidationError = false;
+
+            if (string.IsNullOrEmpty(currentPassword))
+            {
+                currentPasswordError = "You must provide your current password to make security changes.";
+                hasValidationError = true;
+            }
+            if (string.IsNullOrEmpty(newPassword))
+            {
+                newPasswordError = "Please provide your new password.";
+                hasValidationError = true;
+            }
+            if (string.IsNullOrEmpty(confirmPassword))
+            {
+                confirmPasswordError = "Please confirm your new password.";
+                hasValidationError = true;
+            }
+
+            if (hasValidationError) return;
+
+            if (newPassword.Length < 6)
+            {
+                newPasswordError = "The new password must be at least 6 characters long.";
+                return;
+            }
+
+            if (newPassword != confirmPassword)
+            {
+                confirmPasswordError = "The confirmation password does not match your new password.";
+                return;
+            }
+
+            var hasher = new PasswordHasher<User>();
+            var verificationResult = hasher.VerifyHashedPassword(user, user.PasswordHash, currentPassword);
+
+            if (verificationResult != PasswordVerificationResult.Success)
+            {
+                currentPasswordError = "The current password you typed does not match our records.";
+                return;
+            }
+
+            user.PasswordHash = hasher.HashPassword(user, newPassword);
+        }
+
+        await db.SaveChangesAsync();
+        ChangeTheme(selectedTheme);
+
+        if (NavManager != null)
+        {
+            // O forceLoad: true é o "F5" que querias
+            NavManager.NavigateTo(NavManager.Uri, forceLoad: true);
+        }
+       
+        currentPassword = string.Empty;
+        newPassword = string.Empty;
+        confirmPassword = string.Empty;
+
+        successMessage = "Profile settings have been updated successfully!";
+    }
+
+    private void ClearValidationStates()
+    {
+        successMessage = string.Empty;
+        errorMessage = string.Empty;
+        emailError = string.Empty;
+        currentPasswordError = string.Empty;
+        newPasswordError = string.Empty;
+        confirmPasswordError = string.Empty;
+    }
+
+    private void ChangeTheme(string themeName)
+    {
+        selectedTheme = themeName;
+        ThemeService.SetTheme(themeName);
+    }
+
+    private async Task ResetUserGroupRecordsAsync(DataContext db, int userId, int groupId)
+    {
+        // Atualiza BuyOrders do utilizador mapeadas para este grupo
+        await db.BuyOrders
+            .Where(b => b.UserId == userId && b.GroupId == groupId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(b => b.GroupId, 0));
+
+        // Atualiza Expenses do utilizador mapeadas para este grupo
+        await db.Expenses
+            .Where(e => e.UserId == userId && e.GroupId == groupId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(e => e.GroupId, 0));
+
+        // Atualiza Salaries do utilizador mapeadas para este grupo
+        await db.Salaries
+            .Where(s => s.UserId == userId && s.GroupId == groupId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(s => s.GroupId, 0));
+
+        // Atualiza BuyOrderLines do utilizador mapeadas para este grupo
+        await db.BuyOrderLines
+            .Where(bl => bl.UserId == userId && bl.GroupId == groupId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(bl => bl.GroupId, 0));
+
+        // Atualiza ExpenseLines do utilizador mapeadas para este grupo
+        await db.ExpenseLines
+            .Where(el => el.UserId == userId && el.GroupId == groupId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(el => el.GroupId, 0));
+    }
+}

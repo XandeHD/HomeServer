@@ -1,0 +1,166 @@
+﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject HomeServer.Classes.Services.Theme ThemeService
+@using HomeServer.Data.Models
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<DataContext> DbFactory
+@implements IDisposable
+
+@if (IsLoginPage)
+{
+    @* Renders the login page cleanly without navigation sidebars or auth walls *@
+    @Body
+}
+else
+{
+    <div class="page @ThemeService.CurrentThemeClass">
+
+        @if (isFinanceModule)
+        {
+            <div class="sidebar">
+                @* Carrega o NavMenu específico do módulo Finance *@
+                <HomeServer.Components.Modules.Finance.Components.NavMenu />
+            </div>
+        }
+       
+
+        <main>
+            <div class="top-row px-4 d-flex justify-content-between align-items-center">
+                <div>
+                    @if (isProfilePage)
+                    {
+                        <button onclick="history.back(); return false;" class="btn btn-sm btn-outline-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Voltar
+                        </button>
+                    }
+                    else @if (isFinanceModule)
+                    {
+                        <a href="/" class="btn btn-sm btn-outline-secondary me-2">
+                            <i class="bi bi-arrow-left"></i> Voltar ao Menu Principal
+                        </a>
+                    }
+                </div>
+
+                <div class="d-flex align-items-center gap-3">
+                    <AuthorizeView>
+                        <Authorized>
+                            @* LINK PARA O PROFILE *@
+                            <a href="/profile" class="btn btn-sm btn-link text-secondary text-decoration-none d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-person-circle fs-6"></i>
+                                <span>@context.User.Identity?.Name</span>
+                            </a>
+
+                            @* BOTÃO DE LOGOUT *@
+                            <form action="/api/auth/logout" method="post" class="d-inline m-0">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="ReturnUrl" value="" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger border-0 d-inline-flex align-items-center gap-1 py-1">
+                                    <i class="bi bi-box-arrow-right"></i>
+                                    <span>Logout</span>
+                                </button>
+                            </form>
+                        </Authorized>
+                        <NotAuthorized>
+                            <a href="/login" class="btn btn-sm btn-outline-primary">Login</a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </div>
+}
+
+@code {
+    // Captura o estado de autenticação passado pelo App.razor / Routes.razor
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthStateTask { get; set; }
+
+    private bool isFinanceModule;
+    private bool isProfilePage;
+
+    // Deteta se a página atual é a de login
+    private bool IsLoginPage => NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
+        .StartsWith("login", StringComparison.OrdinalIgnoreCase);
+
+    protected override void OnInitialized()
+    {
+        // Subscreve ao evento do tema de forma segura
+        ThemeService.OnThemeChanged += OnThemeChanged;
+
+        // Subscreve às mudanças de rota
+        NavigationManager.LocationChanged += OnLocationChanged;
+        CheckCurrentModule(NavigationManager.Uri);
+    }
+
+    // Alterado para Assíncrono para poderes usar o 'await' na Base de Dados de forma correta
+    protected override async Task OnParametersSetAsync()
+    {
+        CheckCurrentModule(NavigationManager.Uri);
+
+        if (AuthStateTask != null)
+        {
+            var authState = await AuthStateTask;
+            var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+            if (!IsLoginPage)
+            {
+                if (!isAuthenticated)
+                {
+                    // Utilizador não autenticado vai para o login
+                    NavigationManager.NavigateTo("/login");
+                    return;
+                }
+
+                // SE ESTÁ AUTENTICADO: Vamos buscar o tema gravado na BD para este utilizador
+                var currentUsername = authState.User.Identity?.Name;
+                if (!string.IsNullOrEmpty(currentUsername) && string.IsNullOrEmpty(ThemeService.CurrentThemeClass))
+                {
+                    using var db = await DbFactory.CreateDbContextAsync();
+                    var user = await db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == currentUsername.ToLower());
+                    if (user != null && !string.IsNullOrEmpty(user.Theme))
+                    {
+                        // Aplica o tema lido da BD globalmente no arranque
+                        ThemeService.SetTheme(user.Theme);
+                    }
+                }
+            }
+        }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        CheckCurrentModule(e.Location);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void CheckCurrentModule(string url)
+    {
+        // Valida se o endereço atual contém "finance"
+        isFinanceModule = url.Contains("/finance", StringComparison.OrdinalIgnoreCase);
+
+        isProfilePage = url.EndsWith("/profile", StringComparison.OrdinalIgnoreCase) || url.Contains("/profile/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnThemeChanged()
+    {
+        // Força o re-render na thread correta da UI
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        NavigationManager.LocationChanged -= OnLocationChanged;
+        ThemeService.OnThemeChanged -= OnThemeChanged;
+    }
+   
+    private async Task BackButton()
+    {
+        await JSRuntime.InvokeVoidAsync("history.back");
+    }
+
+}

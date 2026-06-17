@@ -1,0 +1,442 @@
+﻿@page "/finance/salary"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Claims
+@using SalaryModel = HomeServer.Data.Models.Salary
+@using HomeServer.Classes.Enums
+@inject IDbContextFactory<DataContext> DbFactory
+
+<PageTitle>Salary Management</PageTitle>
+
+<div class="container-fluid max-width-container mt-3">
+    @* Header Section *@
+    <div class="d-flex justify-content-between align-items-end mb-4">
+        <div>
+            <h1 class="h4 text-dark fw-semibold mb-0">Salary Records</h1>
+            <p class="text-muted small mb-0">Log your income sources and track your payroll history over time.</p>
+        </div>
+        <div>
+            <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenModal">
+                <i class="bi bi-plus-lg small"></i>
+                <span class="small fw-medium">New Salary</span>
+            </button>
+        </div>
+    </div>
+
+    @* Clean History Table *@
+    @if (salaryHistory == null)
+    {
+        <p class="text-muted small"><em>Loading history...</em></p>
+    }
+    else if (!salaryHistory.Any())
+    {
+        <p class="text-muted bg-white p-4 rounded shadow-sm text-center small border">No salary records entries found.</p>
+    }
+    else
+    {
+        <div class="bg-white rounded shadow-sm border overflow-hidden">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary small text-uppercase tracking-wider">
+                    <tr>
+                        <th class="ps-3 text-center" style="width: 100px;">Status</th>
+                        <th style="width: 120px;">Person</th>
+                        <th style="width: 150px;">Type</th>
+                        <th>Description / Source</th>
+                        <th class="text-center" style="width: 150px;">Date</th>
+                        <th class="text-end" style="width: 150px;">Net Amount</th>
+                        <th class="text-end pe-3" style="width: 180px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sal in salaryHistory)
+                    {
+                        <tr class="@(deleteTargetId == sal.Id ? "table-danger-light" : "")">
+                            <td class="ps-3 text-center">
+                                <div class="form-check form-switch d-inline-block">
+                                    <input class="form-check-input style-pointer" type="checkbox" role="switch"
+                                           checked="@(sal.IsActive ?? false)"
+                                           @onchange="(e) => ToggleActiveStatus(sal, e)" />
+                                </div>
+                            </td>
+                            <td class="fw-bold text-secondary">
+                                <span class="badge bg-primary-subtle text-primary rounded-pill">
+                                    @* Aqui podes mapear o ID para o Nome se preferires mostrar o texto amigável *@
+                                    @(MembrosContexto.FirstOrDefault(m => Convert.ToInt32(m.Id) == sal.UserId)?.Nome ?? "User desconhecido")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border">
+                                    @sal.Type.ToFriendlyString()
+                                </span>
+                            </td>
+                            <td class="fw-medium text-dark">
+                                @(string.IsNullOrWhiteSpace(sal.Description) ? "Monthly Salary" : sal.Description)
+                                @if (sal.IsActive == true)
+                                {
+                                    <span class="badge bg-success-subtle text-success ms-2 font-monospace" style="font-size: 0.7rem;">Active</span>
+                                }
+                            </td>
+                            <td class="text-center text-muted small">@sal.Date.ToString("dd-MM-yyyy")</td>
+                            <td class="text-end fw-bold text-success">€@sal.Amount.ToString("F2")</td>
+                            <td class="text-end pe-3">
+                                <div class="d-inline-flex align-items-center gap-2">
+                                    @if (deleteTargetId != sal.Id)
+                                    {
+                                        <button class="btn btn-sm btn-link text-secondary text-decoration-none p-1"
+                                                @onclick="() => OpenEditModal(sal)" title="Edit item">
+                                            <i class="bi bi-pencil-square"></i> Edit
+                                        </button>
+                                    }
+
+                                    @if (deleteTargetId == sal.Id)
+                                    {
+                                        <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
+                                            <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(sal.Id)">
+                                                <i class="bi bi-trash-fill me-1"></i> Delete
+                                            </button>
+                                            <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
+                                                <i class="bi bi-x-lg"></i>
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
+                                                @onclick="() => RequestDelete(sal.Id)" title="Delete Item">
+                                            <i class="bi bi-trash"></i> Delete
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@* Unified Dialog Modal Management Block *@
+@if (IsVisible)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);" @onclick="CloseModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true" style="max-width: 600px;">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+
+                <div class="modal-header bg-light border-bottom-0 py-3 px-4">
+                    <h5 class="modal-title fw-bold text-dark fs-6 d-flex align-items-center gap-2">
+                        <i class="bi @(newSalary.Id == 0 ? "bi-plus-circle" : "bi-pencil-square") text-primary"></i>
+                        @(newSalary.Id == 0 ? "Register New Salary" : "Modify Salary Entry")
+                    </h5>
+                    <button type="button" class="btn-close fs-7" @onclick="CloseModal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body px-4 py-3">
+                    <EditForm Model="@newSalary" OnValidSubmit="@HandleSaveSalary">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="alert alert-danger small p-2 ps-4 mb-3 rounded-2" />
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-medium text-secondary mb-1">Person *</label>
+                                <InputSelect @bind-Value="newSalary.UserId" class="form-select form-select-sm">
+                                    @if (!MembrosContexto.Any())
+                                    {
+                                        <option value="">Loading users...</option>
+                                    }
+                                    @foreach (var membro in MembrosContexto)
+                                    {
+                                        <option value="@membro.Id">@membro.Nome</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-medium text-secondary mb-1">Type *</label>
+                                <InputSelect @bind-Value="newSalary.Type" class="form-select form-select-sm">
+                                    @foreach (SalaryType type in Enum.GetValues(typeof(SalaryType)))
+                                    {
+                                        <option value="@type">@type.ToFriendlyString()</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-label small fw-medium text-secondary mb-1">Source / Employer *</label>
+                                <InputText @bind-Value="newSalary.Description" class="form-control form-control-sm" placeholder="e.g., Main Job, Freelance" />
+                            </div>
+                        </div>
+
+                        <div class="row g-2 mb-3">
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-medium text-secondary mb-1">Amount (€) *</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0 text-muted">€</span>
+                                    <InputNumber TValue="float" @bind-Value="newSalary.Amount" class="form-control border-start-0 ps-0 text-end fw-bold text-success" placeholder="0.00" />
+                                </div>
+                            </div>
+                            <div class="col-sm-6">
+                                <label class="form-label small fw-medium text-secondary mb-1">Pay Date *</label>
+                                <InputDate @bind-Value="newSalary.Date" class="form-control form-control-sm" />
+                            </div>
+                        </div>
+
+                        <div class="row g-3 mb-4 align-items-center">
+                            <div class="col-sm-12">
+                                <div class="form-check form-switch bg-white border rounded p-2 px-3 shadow-sm d-flex align-items-center gap-2">
+                                    <input type="checkbox" class="form-check-input m-0 style-pointer" id="isActiveCheck"
+                                           checked="@(newSalary.IsActive ?? false)"
+                                           @onchange="(e) => { newSalary.IsActive = (bool)(e.Value ?? false); }" />
+                                    <label class="form-check-label small fw-semibold text-dark style-pointer" for="isActiveCheck">Set as Active Current Salary</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
+                            <button type="button" class="btn btn-sm btn-light text-secondary border px-3" @onclick="CloseModal">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-sm btn-primary px-3 fw-medium d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-check-lg"></i> @(newSalary.Id == 0 ? "Save Salary" : "Update Changes")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool IsVisible = false;
+    private List<SalaryModel>? salaryHistory;
+    private SalaryModel newSalary { get; set; } = new();
+    private int deleteTargetId = 0;
+
+    // Lista global para o dropdown da View e para filtrar o histórico
+    private List<MembroDropdownDto> MembrosContexto = new();
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Carrega primeiro os utilizadores do contexto (Solo ou Grupo)
+        await LoadUsersFromGroup();
+
+        // 2. Carrega o histórico filtrado apenas pelos utilizadores carregados acima
+        await LoadSalaryHistory();
+    }
+
+
+    private async Task LoadSalaryHistory()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (MembrosContexto == null || !MembrosContexto.Any())
+        {
+            salaryHistory = new List<SalaryModel>();
+            return;
+        }
+
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        // Extrai os IDs (que estão como string no DTO)
+        var idsPermitidosStr = MembrosContexto.Select(m => m.Id).ToList();
+
+        // Como na BD as tabelas de Users/GroupUsers usam INTEGER (int),
+        // convertemos para uma lista de inteiros para a comparação com 's.UserId' ser direta e eficiente
+        var idsPermitidosInt = idsPermitidosStr
+            .Select(id => int.TryParse(id, out var parsedId) ? parsedId : 0)
+            .Where(id => id != 0)
+            .ToList();
+
+        // Se a lista só tem 1 membro, significa que estamos em MODO SOLO
+        if (MembrosContexto.Count == 0)
+        {
+            var apenasMeuId = user.FindFirst(ClaimTypes.NameIdentifier)?.Value; ;
+
+            salaryHistory = await db.Salaries
+                .Where(s => s.UserId == Convert.ToInt32(apenasMeuId)) // Filtra estritamente pelo teu UserId
+                .OrderByDescending(s => s.Date)
+                .ToListAsync();
+        }
+        else
+        {
+            // MODO GRUPO: Traz os salários de todos os utilizadores que pertencem ao grupo ativo
+            salaryHistory = await db.Salaries
+                .Where(s => idsPermitidosInt.Contains(s.UserId)) // Compara com os IDs dos membros do grupo
+                .OrderByDescending(s => s.Date)
+                .ToListAsync();
+        }
+    }
+
+    private void OpenModal()
+    {
+        CancelDelete();
+        newSalary = new SalaryModel
+        {
+            // Define o Owner por defeito como o ID do utilizador logado (se estiver na lista)
+            UserId = Convert.ToInt32(MembrosContexto.FirstOrDefault()?.Id),
+            Date = DateTime.Today,
+            Description = "Monthly Salary",
+            Type = SalaryType.Trabalho,
+            IsActive = true
+        };
+        IsVisible = true;
+    }
+
+    private void OpenEditModal(SalaryModel sal)
+    {
+        CancelDelete();
+        newSalary = new SalaryModel
+        {
+            Id = sal.Id,
+            Description = sal.Description,
+            Amount = sal.Amount,
+            Date = sal.Date,
+            Type = sal.Type,
+            IsActive = sal.IsActive,
+            UserId = sal.UserId,
+            GroupId = sal.GroupId
+        };
+        IsVisible = true;
+    }
+
+    private void CloseModal()
+    {
+        IsVisible = false;
+    }
+
+    private void RequestDelete(int id)
+    {
+        deleteTargetId = id;
+        IsVisible = false;
+    }
+
+    private void CancelDelete()
+    {
+        deleteTargetId = 0;
+    }
+
+    private async Task ConfirmDelete(int id)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var target = await db.Salaries.FindAsync(id);
+        if (target != null)
+        {
+            db.Salaries.Remove(target);
+            await db.SaveChangesAsync();
+        }
+
+        deleteTargetId = 0;
+        await LoadSalaryHistory();
+    }
+
+    private async Task HandleSaveSalary()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        if (newSalary.IsActive == true)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE salaries SET IsActive = 0 WHERE UserId = {0} AND Type = {1}",
+                newSalary.UserId, (int)newSalary.Type);
+        }
+
+        if (newSalary.Id == 0)
+        {
+            db.Salaries.Add(newSalary);
+        }
+        else
+        {
+            db.Salaries.Update(newSalary);
+        }
+
+        await db.SaveChangesAsync();
+        CloseModal();
+        await LoadSalaryHistory();
+    }
+
+    private async Task ToggleActiveStatus(SalaryModel sal, ChangeEventArgs e)
+    {
+        bool isChecked = (bool)(e.Value ?? false);
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        if (isChecked)
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "UPDATE salaries SET IsActive = 0 WHERE UserId = {0} AND Type = {1}",
+                sal.UserId, (int)sal.Type);
+        }
+
+        var trackingTarget = await db.Salaries.FindAsync(sal.Id);
+        if (trackingTarget != null)
+        {
+            trackingTarget.IsActive = isChecked;
+            await db.SaveChangesAsync();
+        }
+
+        await LoadSalaryHistory();
+    }
+
+    private async Task LoadUsersFromGroup()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated != true) return;
+
+        // Obtém o ID do utilizador autenticado em formato String
+        var currentUserIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(currentUserIdStr))
+        {
+            return;
+        }
+
+        // Converte para int porque a tua BD usa INTEGER para as chaves primárias
+        if (!int.TryParse(currentUserIdStr, out int currentUserId)) return;
+
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        // 1. Procurar se o utilizador pertence a algum grupo na tabela intermédia 'group_users'
+        var userGroupRel = await db.GroupUsers
+            .FirstOrDefaultAsync(gu => gu.UserId == currentUserId);
+
+        if (userGroupRel != null)
+        {
+            // MODO GRUPO: O utilizador pertence a um grupo. Vamos buscar todos os utilizadores desse grupo.
+            MembrosContexto = await db.GroupUsers
+                .Where(gu => gu.GroupId == userGroupRel.GroupId)
+                .Join(db.Users,
+                    gu => gu.UserId,
+                    u => u.Id,
+                    (gu, u) => new MembroDropdownDto
+                    {
+                        Id = u.Id.ToString(), // Mantemos como String para mapear com o Owner do SalaryModel
+                        Nome = u.Username ?? "Membro do Grupo"
+                    })
+                .ToListAsync();
+        }
+        else
+        {
+            // MODO SOLO: Não está associado a nenhum grupo em 'group_users'. Carrega apenas o próprio.
+            var usuarioAtual = await db.Users.FindAsync(currentUserId);
+
+            MembrosContexto = new List<MembroDropdownDto>
+            {
+                new MembroDropdownDto
+                {
+                    Id = currentUserIdStr,
+                    Nome = usuarioAtual?.Username ?? "Eu"
+                }
+            };
+        }
+    }
+
+    public class MembroDropdownDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Nome { get; set; } = string.Empty;
+    }
+}

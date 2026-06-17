@@ -1,0 +1,251 @@
+/* ==========================================
+   Configurações Base (Tema Default - Azul Clean)
+   ========================================== */
+:root {
+    --dynamic-primary: #3b82f6; /* Azul moderno, menos agressivo */
+    --dynamic-primary-rgb: 59, 130, 246;
+    --dynamic-primary-focus-rgba: rgba(59, 130, 246, 0.25);
+    --dynamic-chart-main: #3b82f6;
+    --dynamic-chart-dark: #1d4ed8;
+    /* Estrutura Neutra e Minimalista */
+    --dynamic-navbar-bg: #1e293b; /* Cinza ardósia escuro limpo */
+    --dynamic-sidebar-grad-start: #1e293b; /* Fundo uniforme e elegante */
+    --dynamic-sidebar-grad-end: #0f172a;
+    --dynamic-nav-text: #94a3b8; /* Texto cinza claro em repouso */
+    --dynamic-nav-active-text: #3b82f6; /* O texto do botão acende com a cor do tema */
+}
+
+/* Overrides - A estrutura mantém-se neutra, altera APENAS o acender do botão ativo e dos gráficos */
+.page.theme-vermelho {
+    --dynamic-primary: #ef4444; /* Vermelho pastel moderno */
+    --dynamic-primary-rgb: 239, 68, 68;
+    --dynamic-primary-focus-rgba: rgba(239, 68, 68, 0.25);
+    --dynamic-chart-main: #ef4444;
+    --dynamic-chart-dark: #991b1b;
+    --dynamic-navbar-bg: #1e293b;
+    --dynamic-sidebar-grad-start: #1e293b;
+    --dynamic-sidebar-grad-end: #0f172a;
+    --dynamic-nav-text: #94a3b8;
+    --dynamic-nav-active-text: #ef4444; /* Botão ativo acende em Vermelho */
+}
+
+.page.theme-verde {
+    --dynamic-primary: #10b981; /* Verde esmeralda */
+    --dynamic-primary-rgb: 16, 185, 129;
+    --dynamic-primary-focus-rgba: rgba(16, 185, 129, 0.25);
+    --dynamic-chart-main: #10b981;
+    --dynamic-chart-dark: #047857;
+    --dynamic-navbar-bg: #1e293b;
+    --dynamic-sidebar-grad-start: #1e293b;
+    --dynamic-sidebar-grad-end: #0f172a;
+    --dynamic-nav-text: #94a3b8;
+    --dynamic-nav-active-text: #10b981; /* Botão ativo acende em Verde */
+}
+
+.page.theme-amarelo {
+    --dynamic-primary: #f59e0b; /* Âmbar/Amarelo suave */
+    --dynamic-primary-rgb: 245, 158, 11;
+    --dynamic-primary-focus-rgba: rgba(245, 158, 11, 0.25);
+    --dynamic-chart-main: #f59e0b;
+    --dynamic-chart-dark: #b45309;
+    --dynamic-navbar-bg: #1e293b; /* Mantém o cinza escuro SaaS profissional */
+    --dynamic-sidebar-grad-start: #1e293b;
+    --dynamic-sidebar-grad-end: #0f172a;
+    --dynamic-nav-text: #94a3b8;
+    --dynamic-nav-active-text: #f59e0b; /* Botão ativo acende em Amarelo/Âmbar suave */
+}
+
+/* ==========================================
+   Aplicação Semântica Global das Variáveis
+   ========================================== */
+html, body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+}
+
+a, .btn-link {
+    color: var(--dynamic-primary);
+}
+
+.btn-primary {
+    color: #fff !important;
+    background-color: var(--dynamic-primary) !important;
+    border-color: var(--dynamic-primary) !important;
+}
+
+    .btn-primary:hover {
+        filter: brightness(0.85);
+    }
+
+.content {
+    padding-top: 1.1rem;
+}
+
+h1:focus {
+    outline: none;
+}
+
+.valid.modified:not([type=checkbox]) {
+    outline: 1px solid #26b050;
+}
+
+.invalid {
+    outline: 1px solid #e50000;
+}
+
+.validation-message {
+    color: #e50000;
+}
+
+.darker-border-checkbox.form-check-input {
+    border-color: #929292;
+}
+
+/* ==========================================
+   Dashboard Analytic Chart
+   ========================================== */
+.chart-grid-container {
+    display: grid;
+    align-items: flex-end;
+    height: 340px;
+    border-bottom: 2px solid #f1f5f9;
+    padding-top: 2rem;
+    padding-bottom: 0.5rem;
+}
+
+.chart-bar-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+    height: 100%;
+    text-align: center;
+    position: relative;
+}
+
+    .chart-bar-wrapper:hover .chart-bar {
+        opacity: 1 !important;
+        filter: brightness(0.85);
+        transform: scaleY(1.02);
+        transform-origin: bottom;
+    }
+
+.bar-value-text {
+    font-size: 0.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    display: block;
+}
+
+@media (min-width: 768px) {
+    .bar-value-text {
+        font-size: 0.62rem;
+    }
+}
+
+.chart-label-text {
+    margin-top: 8px;
+    font-size: 0.62rem;
+    white-space: nowrap;
+}
+
+.bg-info {
+    background-color: var(--dynamic-chart-main) !important;
+}
+
+.bg-success {
+    background-color: var(--dynamic-chart-dark) !important;
+}
+
+/* ==========================================
+   Sidebar / NavMenu (CORRIGIDO E SUAVIZADO)
+   ========================================== */
+.navbar-dark, .top-row.navbar {
+    background-color: var(--dynamic-navbar-bg) !important;
+}
+
+.sidebar {
+    background-image: linear-gradient(180deg, var(--dynamic-sidebar-grad-start) 0%, var(--dynamic-sidebar-grad-end) 100%) !important;
+}
+
+.nav-link {
+    color: var(--dynamic-nav-text) !important;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    border-radius: 6px;
+    margin-bottom: 4px;
+}
+
+    .nav-link:hover {
+        background-color: rgba(255, 255, 255, 0.05) !important; /* Efeito de hover muito discreto */
+        color: #fff !important;
+    }
+
+    /* CORREÇÃO DO CULPADO: Fundo amarelo forte removido. 
+   Agora usa um fundo escuro transparente e destaca através do texto colorido e da borda lateral esquerda. */
+    .nav-link.active {
+        background-color: rgba(255, 255, 255, 0.08) !important; /* Fundo escuro e suave integrado ao menu */
+        color: var(--dynamic-nav-active-text) !important; /* O texto ganha a cor do tema (Azul, Vermelho, Verde, Amarelo) */
+        font-weight: 500;
+        box-shadow: inset 4px 0 0 0 var(--dynamic-nav-active-text) !important; /* Barra vertical esquerda dinâmica */
+    }
+
+.border-info {
+    border-color: var(--dynamic-chart-main) !important;
+}
+
+.border-primary {
+    border-color: var(--dynamic-chart-dark) !important;
+}
+
+/* ==========================================
+   Botões de Filtro Outline
+   ========================================== */
+.btn-outline-primary {
+    color: var(--dynamic-primary) !important;
+    border-color: var(--dynamic-primary) !important;
+    background-color: transparent !important;
+    transition: all 0.2s ease-in-out;
+}
+
+    .btn-outline-primary:hover,
+    .btn-outline-primary.active,
+    .btn-outline-primary:active {
+        color: #fff !important;
+        background-color: var(--dynamic-primary) !important;
+        border-color: var(--dynamic-primary) !important;
+    }
+
+    .btn-outline-primary:focus {
+        box-shadow: 0 0 0 0.25rem var(--dynamic-primary-focus-rgba) !important;
+    }
+
+.text-red {
+    color: var(--dynamic-chart-main) !important;
+}
+
+/* ==========================================
+   Controlo Global de Transições e Foco Estrito
+   ========================================== */
+.btn {
+    transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
+}
+
+    .btn:active, .btn.active, .btn-primary:active {
+        background-color: var(--dynamic-primary) !important;
+        border-color: var(--dynamic-primary) !important;
+        color: #fff !important;
+    }
+
+    .btn:focus, .btn:focus-visible,
+    .btn-primary:focus, .btn-primary:focus-visible,
+    .form-control:focus {
+        box-shadow: 0 0 0 0.25rem var(--dynamic-primary-focus-rgba) !important;
+        outline: none !important;
+    }
+
+.bg-current-period {
+    background-color: #f59e0b !important;
+}

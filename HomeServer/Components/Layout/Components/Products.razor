@@ -1,0 +1,270 @@
+﻿@page "/products"
+@attribute [StreamRendering]
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore;
+
+@inject IDbContextFactory<DataContext> DbFactory
+
+<PageTitle>Products</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h4 text-dark fw-semibold mb-0">Products</h1>
+        <p class="text-muted small mb-0">Listagem de todos os produtos presentes no sistema.</p>
+    </div>
+
+    @* Elevated Add Product Button *@
+    <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenModal">
+        <i class="bi bi-plus-lg small"></i>
+        <span class="small fw-medium">Add Product</span>
+    </button>
+</div>
+
+@if (productsList == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
+        <thead class="table-light text-secondary small text-uppercase tracking-wider">
+            <tr>
+                <th class="ps-3">Name</th>
+                <th class="text-end" style="width: 120px;">Price</th>
+                <th class="text-center" style="width: 120px;">Energy</th>
+                <th class="text-end pe-3" style="width: 180px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var prod in productsList)
+            {
+                // Subtle danger border accent if this row is selected for deletion
+                <tr class="@(deleteTargetId == prod.Id ? "table-danger-light" : "")">
+
+                    @* 1. Product Name *@
+                    <td class="fw-semibold text-dark ps-3">@prod.Name</td>
+
+                    @* 2. Right-aligned Price with symbol *@
+                    <td class="text-end text-monospace fw-medium text-secondary">
+                        €@prod.Price.ToString("F2")
+                    </td>
+
+                    @* 3. Calories centered in a slick modern badge *@
+                    <td class="text-center">
+                        @if (prod.KCal.HasValue)
+                        {
+                            <span class="badge rounded-pill bg-light text-dark border px-2 py-1 small">
+                                <i class="bi bi-fire text-warning me-1"></i>@prod.KCal kcal
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-muted fs-7">—</span>
+                        }
+                    </td>
+
+                    @* 4. Aligned Action Layout *@
+                    <td class="text-end pe-3">
+                        <div class="d-inline-flex align-items-center gap-2">
+
+                            @* Only show standard Edit button if we aren't confirming a delete *@
+                            @if (deleteTargetId != prod.Id)
+                            {
+                                <button class="btn btn-sm btn-link text-secondary text-decoration-none p-1"
+                                        @onclick="() => OpenEditModal(prod)" title="Edit item">
+                                    <i class="bi bi-pencil-square"></i> Edit
+                                </button>
+                            }
+
+                            @if (deleteTargetId == prod.Id)
+                            {
+                                @* Step 2: Unified Confirmation Button Pill *@
+                                <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
+                                    <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(prod)">
+                                        <i class="bi bi-trash-fill me-1"></i> Delete
+                                    </button>
+                                    <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
+                                        <i class="bi bi-x-lg"></i>
+                                    </button>
+                                </div>
+                            }
+                            else
+                            {
+                                @* Step 1: Default Delete link *@
+                                <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
+                                        @onclick="() => RequestDelete(prod.Id)" title="Delete Item">
+                                    <i class="bi bi-trash"></i> Delete
+                                </button>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (IsVisible)
+{
+    @* Soft backdrop blur for that modern SaaS overlay feel *@
+    <div class="modal fade show d-block" style="background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);" @onclick="CloseModal">
+        <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true" style="max-width: 450px;">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+
+                @* Header Section *@
+                <div class="modal-header bg-light border-bottom-0 py-3 px-4">
+                    <h5 class="modal-title fw-bold text-dark fs-6 d-flex align-items-center gap-2">
+                        <i class="bi @(NewItem.Id == 0 ? "bi-plus-circle" : "bi-pencil-square") text-primary"></i>
+                        @(NewItem.Id == 0 ? "Add New Product" : "Edit Product")
+                    </h5>
+                    <button type="button" class="btn-close fs-7" @onclick="CloseModal" aria-label="Close"></button>
+                </div>
+
+                @* Form Body *@
+                <div class="modal-body px-4 py-3">
+                    <EditForm Model="@NewItem" OnValidSubmit="@SaveProduct">
+                        <DataAnnotationsValidator />
+
+                        @* Form Validation Summary (Styled cleanly) *@
+                        <ValidationSummary class="alert alert-danger small p-2 ps-4 mb-3 rounded-2" />
+
+                        @* 1. Product Name Input *@
+                        <div class="mb-3">
+                            <label class="form-label small fw-medium text-secondary mb-1">Product Name</label>
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-tag"></i></span>
+                                <InputText @bind-Value="NewItem.Name" class="form-control border-start-0 ps-0" placeholder="e.g. Apple" />
+                            </div>
+                        </div>
+
+                        @* 2. Row Container for Price & Calories (Keeps the modal compact) *@
+                        <div class="row g-3 mb-4">
+                            @* Price Column *@
+                            <div class="col-6">
+                                <label class="form-label small fw-medium text-secondary mb-1">Price</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0 text-muted">€</span>
+                                    <InputNumber @bind-Value="NewItem.Price" class="form-control border-start-0 ps-0" placeholder="0.00" />
+                                </div>
+                            </div>
+
+                            @* Calories Column *@
+                            <div class="col-6">
+                                <label class="form-label small fw-medium text-secondary mb-1">Calories (kCals)</label>
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-fire text-warning"></i></span>
+                                    <InputNumber @bind-Value="NewItem.KCal" class="form-control border-start-0 ps-1" placeholder="Optional" />
+                                </div>
+                            </div>
+                        </div>
+
+                        @* Modal Footer/Actions Layout *@
+                        <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
+                            <button type="button" class="btn btn-sm btn-light text-secondary border px-3" @onclick="CloseModal">
+                                Cancel
+                            </button>
+                            <button type="submit" class="btn btn-sm btn-primary px-3 fw-medium d-inline-flex align-items-center gap-1">
+                                <i class="bi bi-check-lg"></i> Save Product
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Product>? productsList = new List<Product>();    
+
+    private bool IsVisible { get; set; }
+    private Product NewItem { get; set; } = new();
+
+    private int deleteTargetId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProducts();
+    }
+
+    private async Task LoadProducts()
+    {
+        // Using the factory pattern to create and safely dispose of the context
+        using var db = await DbFactory.CreateDbContextAsync();
+        productsList = await db.Products.ToListAsync();
+    }
+
+    private void RequestDelete(int id)
+    {
+        // Puts this specific row into confirmation mode
+        deleteTargetId = id;
+        IsVisible = false; // Close edit modal if it happens to be open
+    }
+
+    private void CancelDelete()
+    {
+        // Resets the confirmation state back to the default "Delete" button
+        deleteTargetId = 0;
+    }
+
+    private async Task ConfirmDelete(Product productToDelete)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        // Remove the record from the SQLite database
+        db.Products.Remove(productToDelete);
+        await db.SaveChangesAsync();
+
+        // Reset our state tracker
+        deleteTargetId = 0;
+
+        // Refresh the list immediately so the UI reflects the deletion
+        await LoadProducts();
+    }
+
+    private void OpenModal()
+    {
+        CancelDelete();
+        NewItem = new Product(); // Reset form data
+        IsVisible = true;
+    }
+
+    private void CloseModal()
+    {
+        IsVisible = false;
+    }
+
+    private void OpenEditModal(Product productToEdit)
+    {
+        NewItem = new Product
+        {
+            Id = productToEdit.Id,
+            Name = productToEdit.Name,
+            Price = productToEdit.Price,
+            KCal = productToEdit.KCal
+        };
+        IsVisible = true;
+    }
+
+    private async Task SaveProduct()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+
+        if (NewItem.Id == 0)
+        {
+            // If the Id is 0, it means it's a completely new product
+            db.Products.Add(NewItem);
+        }
+        else
+        {
+            // If it has an Id, we update the existing entity
+            db.Products.Update(NewItem);
+        }
+
+        await db.SaveChangesAsync();
+
+        CloseModal();
+        await LoadProducts(); // Pull fresh data to show updates instantly
+    }
+}

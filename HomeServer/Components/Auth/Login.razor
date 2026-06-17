@@ -1,0 +1,52 @@
+﻿@page "/login"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject NavigationManager NavigationManager
+
+<PageTitle>Login - Home Server</PageTitle>
+
+<div class="container mt-5 d-flex justify-content-center">
+    <div class="card shadow-sm" style="width: 100%; max-width: 400px;">
+        <div class="card-body p-4">
+            <h4 class="card-title text-center mb-4 fw-bold">System Login</h4>
+
+            @if (NavigationManager.Uri.Contains("error=InvalidCredentials"))
+            {
+                <div class="alert alert-danger small p-2 text-center">
+                    Invalid credentials. Please try again.
+                </div>
+            }
+
+            @* FIXED: Now securely POSTs to our minimal API and handles the root redirect *@
+            <form action="/api/auth/login" method="post">
+
+                @* Generates the hidden secure token field required by .NET *@
+                <AntiforgeryToken />
+
+                <div class="mb-3">
+                    <label class="form-label small fw-medium">Username</label>
+                    <input name="username" type="text" class="form-control" required />
+                </div>
+                <div class="mb-4">
+                    <label class="form-label small fw-medium">Password</label>
+                    <input name="password" type="password" class="form-control" required />
+                </div>
+
+
+                <button type="submit" class="btn btn-primary w-100 fw-medium">Sign In</button>
+            </form>
+
+            <div class="d-flex flex-column gap-2 mt-3">
+                <hr />
+                <p class="text-center text-muted small">Ou entra com as tuas redes sociais</p>
+
+                <a href="/api/auth/login-google" class="btn btn-outline-dark d-flex align-items-center justify-content-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-google" viewBox="0 0 16 16">
+                        <path d="M15.545 6.558a9.42 9.42 0 0 1 .139 1.626c0 2.434-.87 4.492-2.384 5.885h.002C11.978 15.292 10.158 16 8 16A8 8 0 1 1 8 0c2.158 0 3.92.8 5.337 2.19l-2.03 2.03C10.284 3.193 9.317 2.78 8 2.78c-2.43 0-4.41 2.03-4.41 4.533s1.98 4.532 4.41 4.532c2.5 0 4.02-1.634 4.14-3.664H8.932V6.558h6.613z" />
+                    </svg>
+                    Entrar com o Google
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
