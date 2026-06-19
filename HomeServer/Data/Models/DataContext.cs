@@ -31,5 +31,7 @@ namespace HomeServer.Data.Models
         public DbSet<User> Users { get; set; }
         public DbSet<Group> Groups { get; set; }
         public DbSet<GroupUser> GroupUsers { get; set; }
+        public DbSet<InvestedAsset> InvestedAssets { get; set; }
+        public DbSet<StockPosition> StockPositions { get; set; }
     }
 }

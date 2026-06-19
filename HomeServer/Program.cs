@@ -44,6 +44,8 @@ builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddScoped<HomeServer.Classes.Services.Theme>();
 
+builder.Services.AddHttpClient<StockService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -212,10 +214,10 @@ using (var scope = app.Services.CreateScope())
     {
         var hasher = new PasswordHasher<User>();
 
-        var adminUser = new User { Username = "Alexandre", Email = "alexferrao2000@gmail.com" };
+        var adminUser = new User { Username = "Alexandre", Email = "gdmfplays@gmail.com" };
         adminUser.PasswordHash = hasher.HashPassword(adminUser, "mypassword");
 
-        var wifeUser = new User { Username = "Tays", Email = "alexferrao2000@gmail.com" };
+        var wifeUser = new User { Username = "Tays", Email = "gdmfplays@gmail.com" };
         wifeUser.PasswordHash = hasher.HashPassword(wifeUser, "amordaminhavida123");
 
         db.Users.AddRange(adminUser, wifeUser);

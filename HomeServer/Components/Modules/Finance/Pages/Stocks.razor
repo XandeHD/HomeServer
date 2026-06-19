@@ -1,0 +1,528 @@
+﻿@page "/finance/stocks"
+@rendermode InteractiveServer
+@using HomeServer.Data.Models
+@using System.Security.Claims
+@inject HomeServer.Classes.Services.StockService StockService
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Portfólio de Stocks - Home Server</PageTitle>
+
+<div class="container mt-4" style="max-width: 1000px;">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold mb-0 text-dark">📈 Ativos & Investimentos</h3>
+            <p class="text-muted small mb-0">Monitorização em tempo real integrada com o teu SQLite.</p>
+        </div>
+        <span class="badge p-2 font-monospace text-white" style="background-color: #6001d2;">Yahoo API + DB</span>
+    </div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 bg-light p-3">
+                <span class="text-muted small fw-bold text-uppercase">Total Investido</span>
+                <h3 class="fw-bold text-dark mt-1 mb-0">@totalInvested.ToString("N2") €</h3>
+                <small class="text-muted">Custo total das posições abertas</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 bg-light p-3">
+                <span class="text-muted small fw-bold text-uppercase">Valor Atual Comercial</span>
+                <h3 class="fw-bold text-primary mt-1 mb-0">@currentPortfolioValue.ToString("N2") €</h3>
+                <small class="text-muted">Avaliação a preços de mercado</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm border-0 bg-light p-3">
+                <span class="text-muted small fw-bold text-uppercase">Valorização Global</span>
+                <div class="d-flex align-items-baseline mt-1">
+                    <h3 class="fw-bold mb-0 @(globalRoi >= 0 ? "text-success" : "text-danger")">
+                        @(globalRoi >= 0 ? "+" : "")@globalRoi.ToString("N2")%
+                    </h3>
+                    <span class="ms-2 small fw-bold @(globalRoi >= 0 ? "text-success" : "text-danger")">
+                        (@((currentPortfolioValue - totalInvested).ToString("N2")) €)
+                    </span>
+                </div>
+                <small class="text-muted">Retorno absoluto (P&L)</small>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3 border-bottom-0" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold py-2 px-4 border-0 @(activeTab == "portfolio" ? "active btn-dark text-white rounded-t" : "text-secondary")"
+                    @onclick='() => ChangeTab("portfolio")' type="button">
+                💼 O Meu Portfólio
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold py-2 px-4 border-0 @(activeTab == "watchlist" ? "active btn-dark text-white rounded-t" : "text-secondary")"
+                    @onclick='() => ChangeTab("watchlist")' type="button">
+                👀 Watchlist Yahoo
+            </button>
+        </li>
+    </ul>
+
+    <div class="card shadow-sm border-0">
+        @if (isLoading)
+        {
+            <div class="text-center my-5 py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="text-muted small mt-2">A sincronizar cotações em direto do Yahoo Finance...</p>
+            </div>
+        }
+        else
+        {
+            @if (activeTab == "portfolio")
+            {
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-wallet2 me-2"></i>Posições Ativas</h6>
+                    <button class="btn btn-dark btn-sm fw-bold shadow-sm px-3" @onclick="OpenModal">
+                        <i class="bi bi-plus-lg me-1"></i>Nova Posição
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    @if (!dbPortfolio.Any())
+                    {
+                        <div class="text-center py-5">
+                            <p class="text-muted small italic my-0">Nenhuma posição de investimento ativa encontrada na Base de Dados.</p>
+                            <button class="btn btn-link btn-sm mt-2 text-dark fw-bold" @onclick="OpenModal">Registar primeira compra</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-4">Código</th>
+                                        <th>Nome do Ativo</th>
+                                        <th>Qtd. Total</th>
+                                        <th>Preço Médio</th>
+                                        <th>Preço Atual</th>
+                                        <th>Total Investido</th>
+                                        <th>Valor Atual</th>
+                                        <th>Valorização</th>
+                                        <th class="text-end pe-4">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var asset in dbPortfolio)
+                                    {
+                                        var liveStock = myQuotes.FirstOrDefault(q => q.Code == asset.Code);
+                                        var openPositions = asset.Positions.Where(p => p.IsOpen).ToList();
+
+                                        var totalQty = openPositions.Sum(p => p.Quantity);
+                                        var totalCost = openPositions.Sum(p => p.Quantity * p.PurchasePrice);
+                                        var avgPrice = totalQty > 0 ? totalCost / totalQty : 0;
+
+                                        var livePrice = liveStock?.Price ?? 0;
+                                        var liveValue = totalQty * livePrice;
+                                        var assetRoi = totalCost > 0 ? ((liveValue - totalCost) / totalCost) * 100 : 0;
+
+                                        <tr>
+                                            <td class="ps-4 font-monospace fw-bold text-dark">@asset.Code</td>
+                                            <td class="fw-medium text-secondary text-truncate" style="max-width: 140px;">@asset.Name</td>
+                                            <td class="font-monospace">@totalQty.ToString("N4")</td>
+                                            <td>@avgPrice.ToString("N2") @asset.Currency</td>
+                                            <td class="fw-bold text-primary">
+                                                @(livePrice > 0 ? $"{livePrice.ToString("N2")} {asset.Currency}" : "---")
+                                            </td>
+                                            <td class="text-muted">@totalCost.ToString("N2") €</td>
+                                            <td class="fw-bold">@liveValue.ToString("N2") €</td>
+                                            <td class="fw-bold @(assetRoi >= 0 ? "text-success" : "text-danger")">
+                                                @(assetRoi >= 0 ? "▲ +" : "▼ ")@assetRoi.ToString("N2")%
+                                            </td>
+                                            <td class="text-end pe-4">
+                                                <div class="d-flex justify-content-end align-items-center gap-2">
+                                                    <button class="btn btn-sm btn-light border text-success fw-bold py-1 px-2" style="font-size: 0.75rem;" @onclick="() => OpenSellModal(asset, livePrice)">
+                                                        <i class="bi bi-currency-exchange me-1"></i>Venda
+                                                    </button>
+                                                    <button class="btn btn-link btn-sm p-0 text-danger border-0 text-decoration-none" @onclick="() => DeletePortfolioAsset(asset.Code)" title="Remover ativo por engano">
+                                                        <i class="bi bi-trash3"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+            else if (activeTab == "watchlist")
+            {
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
+                    <h6 class="mb-0 fw-bold text-secondary"><i class="bi bi-eye me-2"></i>Rastreador de Tendências</h6>
+                    <div class="input-group input-group-sm" style="max-width: 280px;">
+                        <input type="text" class="form-control text-uppercase font-monospace" @bind="newTicker" placeholder="Ex: AAPL, G.MI, UNH" />
+                        <button class="btn btn-dark" type="button" @onclick="AddTicker">Acompanhar</button>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    @if (!myQuotes.Any(q => trackedTickers.Contains(q.Code)))
+                    {
+                        <p class="text-muted small italic text-center py-5 my-0">Nenhum elemento adicionado à Watchlist.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-4">Código</th>
+                                        <th>Nome Curto</th>
+                                        <th>Localização / Zona</th>
+                                        <th>Preço Atual</th>
+                                        <th>Moeda</th>
+                                        <th class="text-end pe-4">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var ticker in trackedTickers)
+                                    {
+                                        var stock = myQuotes.FirstOrDefault(q => q.Code == ticker);
+                                        if (stock != null)
+                                        {
+                                            <tr>
+                                                <td class="ps-4 font-monospace fw-bold text-dark">@stock.Code</td>
+                                                <td class="fw-medium text-secondary text-truncate" style="max-width: 220px;">@stock.ShortName</td>
+                                                <td class="text-muted">@stock.Location</td>
+                                                <td class="fw-bold text-primary">@stock.Price.ToString("N2")</td>
+                                                <td class="font-monospace text-uppercase fw-bold text-muted">@stock.Currency</td>
+                                                <td class="text-end pe-4">
+                                                    <button class="btn btn-link btn-sm p-0 text-danger border-0 text-decoration-none" @onclick="() => RemoveTicker(stock.Code)">
+                                                        <i class="bi bi-trash3"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+@if (isModalOpen)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-dark text-white p-3">
+                    <h6 class="modal-title fw-bold mb-0"><i class="bi bi-cart-plus me-2"></i>Registar Nova Compra</h6>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Close" @onclick="CloseModal"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <div class="mb-3 position-relative">
+                        <label class="form-label small fw-bold text-secondary">Procurar Ativo (Yahoo Finance)</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control border-start-0 ps-1 font-monospace" @bind="searchQuery" @bind:event="oninput" @onkeyup="HandleSearch" placeholder="Ex: generali, apple, unh..." />
+                        </div>
+                        @if (searchResults.Any())
+                        {
+                            <div class="list-group position-absolute w-100 shadow mt-1 border-0" style="z-index: 1070; max-height: 180px; overflow-y: auto;">
+                                @foreach (var item in searchResults)
+                                {
+                                    <button type="button" class="list-group-item list-group-item-action small py-2 text-start border-bottom" @onclick="() => SelectAsset(item)">
+                                        <strong>@item.Symbol</strong> - @(item.ShortName ?? item.LongName)
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small mb-1 fw-bold text-secondary">Ativo Selecionado</label>
+                        <input type="text" class="form-control form-control-sm font-monospace bg-white border-0 shadow-xs fw-bold" readonly value="@(string.IsNullOrEmpty(selectedCode) ? "Nenhum ativo selecionado" : $"{selectedCode} - {selectedName}")" />
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small mb-1 fw-bold text-secondary">Qtd. Comprada</label>
+                            <input type="number" step="0.0001" class="form-control form-control-sm text-center font-monospace" @bind="inputQuantity" placeholder="0.0000" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1 fw-bold text-secondary">Preço Un. (Moeda Custo)</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm text-center font-monospace" @bind="inputPrice" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1 fw-bold text-secondary">Data de Transação</label>
+                        <input type="date" class="form-control form-control-sm text-center" @bind="inputDate" />
+                    </div>
+                </div>
+                <div class="modal-footer p-3 bg-white border-top-0 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" @onclick="CloseModal">Cancelar</button>
+                    <button type="button" class="btn btn-dark btn-sm flex-grow-1" disabled="@(string.IsNullOrEmpty(selectedCode) || inputQuantity <= 0 || inputPrice <= 0)" @onclick="SavePosition">
+                        Gravar 
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (isSellModalOpen)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-0 shadow">
+
+                <div class="modal-header bg-success text-white p-3">
+                    <h6 class="modal-title fw-bold mb-0"><i class="bi bi-currency-exchange me-2"></i>Registar Venda de Ativo</h6>
+                    <button type="button" class="btn-close btn-close-white" aria-label="Close" @onclick="CloseSellModal"></button>
+                </div>
+
+                <div class="modal-body p-4 bg-light">
+                    <div class="mb-3">
+                        <label class="form-label small mb-1 fw-bold text-secondary">Ativo a Comercializar</label>
+                        <input type="text" class="form-control form-control-sm font-monospace bg-white border-0 shadow-xs fw-bold" readonly value="@($"{selectedSellAsset?.Code} - {selectedSellAsset?.Name}")" />
+                    </div>
+
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small mb-1 fw-bold text-secondary">Qtd. a Vender (Máx: @maxQtyToSell.ToString("N4"))</label>
+                            <input type="number" step="0.0001" class="form-control form-control-sm text-center font-monospace" @bind="sellQuantity" max="@maxQtyToSell" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small mb-1 fw-bold text-secondary">Preço de Venda Un.</label>
+                            <input type="number" step="0.01" class="form-control form-control-sm text-center font-monospace" @bind="sellPrice" />
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small mb-1 fw-bold text-secondary">Data do Fecho da Posição</label>
+                        <input type="date" class="form-control form-control-sm text-center" @bind="sellDate" />
+                    </div>
+                </div>
+
+                <div class="modal-footer p-3 bg-white border-top-0 d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary btn-sm flex-grow-1" @onclick="CloseSellModal">Cancelar</button>
+                    <button type="button" class="btn btn-success text-white btn-sm flex-grow-1 fw-bold"
+                            disabled="@(sellQuantity <= 0 || sellQuantity > maxQtyToSell || sellPrice <= 0)" @onclick="ExecuteSell">
+                        Confirmar Venda
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .rounded-t {
+        border-radius: 6px 6px 0 0 !important;
+    }
+
+    .nav-tabs .nav-link.active {
+        border-bottom: 2px solid #000 !important;
+    }
+</style>
+
+@code {
+    private string activeTab = "portfolio";
+    private bool isLoading = true;
+    private string newTicker = string.Empty;
+
+    // Estados de controlo do Modal de Registo de Compra
+    private bool isModalOpen = false;
+    private string searchQuery = string.Empty;
+    private string selectedCode = string.Empty;
+    private string selectedName = string.Empty;
+    private decimal inputQuantity;
+    private decimal inputPrice;
+    private DateTime inputDate = DateTime.Today;
+    private List<YahooSearchQuote> searchResults = new();
+
+    // Estados de controlo do Novo Modal de Venda
+    private bool isSellModalOpen = false;
+    private InvestedAsset? selectedSellAsset;
+    private decimal sellQuantity;
+    private decimal sellPrice;
+    private decimal maxQtyToSell;
+    private DateTime sellDate = DateTime.Today;
+
+    // Listas locais de dados
+    private List<string> trackedTickers = new();
+    private List<InvestedAsset> dbPortfolio = new();
+    private List<StockQuote> myQuotes = new();
+
+    // KPIs Globais
+    private decimal totalInvested = 0;
+    private decimal currentPortfolioValue = 0;
+    private decimal globalRoi = 0;
+
+    // Auth fields
+    private int loggedUserId;
+    private int userGroupId;
+    private bool hasGroup = false;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUserSessionData();
+        await LoadAndRefreshAllDataAsync();
+    }
+
+    private async Task LoadUserSessionData()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            // Extrai o ID do Utilizador
+            var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdStr, out int userId))
+            {
+                loggedUserId = userId;
+            }
+
+            // Extrai o ID do Grupo (se existir)
+            var groupIdStr = user.FindFirst(ClaimTypes.GroupSid)?.Value;
+            if (!string.IsNullOrEmpty(groupIdStr) && int.TryParse(groupIdStr, out int groupId))
+            {
+                userGroupId = groupId;
+                hasGroup = true;
+            }
+        }
+    }
+
+    private async Task LoadAndRefreshAllDataAsync()
+    {
+        isLoading = true;
+
+        if (!trackedTickers.Any())
+        {
+            trackedTickers = await StockService.GetTrendingTickersAsync("US", 6);
+        }
+
+        dbPortfolio = await StockService.GetActivePortfolioAsync();
+
+        var allUniqueTickers = trackedTickers
+            .Concat(dbPortfolio.Select(p => p.Code))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        myQuotes = await StockService.GetMultipleQuotesAsync(allUniqueTickers);
+        CalculateGlobalMetrics();
+
+        isLoading = false;
+    }
+
+    private void CalculateGlobalMetrics()
+    {
+        totalInvested = 0;
+        currentPortfolioValue = 0;
+        globalRoi = 0;
+
+        foreach (var asset in dbPortfolio)
+        {
+            var liveStock = myQuotes.FirstOrDefault(q => q.Code == asset.Code);
+            var activePositions = asset.Positions.Where(p => p.IsOpen);
+
+            foreach (var pos in activePositions)
+            {
+                var cost = pos.Quantity * pos.PurchasePrice;
+                var currentVal = pos.Quantity * (liveStock?.Price ?? 0);
+
+                totalInvested += cost;
+                currentPortfolioValue += currentVal;
+            }
+        }
+
+        if (totalInvested > 0)
+        {
+            globalRoi = ((currentPortfolioValue - totalInvested) / totalInvested) * 100;
+        }
+    }
+
+    private void ChangeTab(string tabName) => activeTab = tabName;
+
+    // Métodos de Controlo do Modal de Transações (Compra)
+    private void OpenModal() => isModalOpen = true;
+    private void CloseModal() { isModalOpen = false; ResetForm(); }
+    private void ResetForm()
+    {
+        searchQuery = string.Empty; selectedCode = string.Empty; selectedName = string.Empty;
+        inputQuantity = 0; inputPrice = 0; inputDate = DateTime.Today; searchResults.Clear();
+    }
+
+    // Métodos do Novo Modal de Venda
+    private void OpenSellModal(InvestedAsset asset, decimal currentLivePrice)
+    {
+        selectedSellAsset = asset;
+        // Agrega o volume máximo disponível para venda
+        maxQtyToSell = asset.Positions.Where(p => p.IsOpen).Sum(p => p.Quantity);
+        sellQuantity = maxQtyToSell;
+        sellPrice = currentLivePrice; // Injeta por defeito a cotação real do Yahoo Finance
+        sellDate = DateTime.Today;
+        isSellModalOpen = true;
+    }
+
+    private void CloseSellModal()
+    {
+        isSellModalOpen = false;
+        selectedSellAsset = null;
+    }
+
+    private async Task ExecuteSell()
+    {
+        // Invoca o método mapeado no teu StockService
+        await StockService.RecordSalePositionAsync(selectedSellAsset.Code, sellQuantity, sellPrice, sellDate);
+        isSellModalOpen = false;
+        await LoadAndRefreshAllDataAsync();
+    }
+
+    // Ação do Botão do Lixo (Apagar por Engano)
+    private async Task DeletePortfolioAsset(string code)
+    {
+        // Invoca o método mapeado no teu StockService
+        await StockService.DeleteAssetPositionsAsync(code);
+        await LoadAndRefreshAllDataAsync();
+    }
+
+    // Métodos da Watchlist e Pesquisa
+    private async Task HandleSearch()
+    {
+        if (searchQuery.Length > 1) searchResults = await StockService.SearchStocksAsync(searchQuery);
+        else searchResults.Clear();
+    }
+
+    private void SelectAsset(YahooSearchQuote asset)
+    {
+        selectedCode = asset.Symbol;
+        selectedName = asset.ShortName ?? asset.LongName ?? asset.Symbol;
+        searchQuery = string.Empty; searchResults.Clear();
+    }
+
+    private async Task SavePosition()
+    {
+        await StockService.AddPositionAsync(selectedCode, selectedName, inputQuantity, inputPrice, inputDate, loggedUserId, userGroupId);
+        isModalOpen = false; ResetForm();
+        await LoadAndRefreshAllDataAsync();
+    }
+
+    private async Task AddTicker()
+    {
+        if (!string.IsNullOrWhiteSpace(newTicker))
+        {
+            var cleanTicker = newTicker.Trim().ToUpper();
+            if (!trackedTickers.Contains(cleanTicker))
+            {
+                trackedTickers.Add(cleanTicker);
+                await LoadAndRefreshAllDataAsync();
+            }
+            newTicker = string.Empty;
+        }
+    }
+
+    private void RemoveTicker(string symbol) => trackedTickers.Remove(symbol);
+}
