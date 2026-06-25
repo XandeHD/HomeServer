@@ -1,18 +1,17 @@
 ﻿@page "/finance/buyorders"
-@attribute [StreamRendering]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using System.Text.Json
 @using System.Text
 @using System.Security.Claims
-@inject HttpClient Http
 @inject IConfiguration Configuration
-
 @inject IHttpClientFactory ClientFactory
 @inject IDbContextFactory<DataContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Buy Orders</PageTitle>
+<PageTitle>@L.T("finance.buyorders.title") - Home Server</PageTitle>
 
 @* Hidden file input that triggers the system photo/camera picker *@
 <InputFile id="receiptInput" OnChange="HandleReceiptSelected" class="d-none" accept="image/*" capture="environment" />
@@ -20,20 +19,20 @@
 @* 1. Compact Professional Header *@
 <div class="d-flex justify-content-between align-items-end mb-3">
     <div>
-        <h1 class="h4 text-dark fw-semibold mb-0">Buy Orders</h1>
-        <p class="text-muted small mb-0">Listagem das listas de compras.</p>
+        <h1 class="h4 text-dark fw-semibold mb-0">@L.T("finance.buyorders.title")</h1>
+        <p class="text-muted small mb-0">@L.T("finance.buyorders.subtitle")</p>
     </div>
 
     <div class="d-flex gap-2">
         @* Button that looks like the others but triggers the camera/upload *@
         <label for="receiptInput" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm">
             <i class="bi bi-camera"></i>
-            <span class="small fw-medium">Add Receipt</span>
+            <span class="small fw-medium">@L.T("finance.buyorders.addReceipt")</span>
         </label>
 
         <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenAddModal">
             <i class="bi bi-plus-lg small"></i>
-            <span class="small fw-medium">New Order</span>
+            <span class="small fw-medium">@L.T("finance.buyorders.newOrder")</span>
         </button>
     </div>
 </div>
@@ -52,10 +51,10 @@
 
         <div class="flex-grow-1">
             <h6 class="text-dark fw-bold mb-0 d-flex align-items-center gap-2">
-                Processing Receipt
-                <span class="badge rounded-pill bg-purple-light text-purple small fw-normal px-2 py-1" style="background-color: #f3e8ff; color: #6b21a8; font-size: 0.75rem;">AI Syncing</span>
+                @L.T("finance.buyorders.processingReceipt")
+                <span class="badge rounded-pill bg-purple-light text-purple small fw-normal px-2 py-1" style="background-color: #f3e8ff; color: #6b21a8; font-size: 0.75rem;">@L.T("finance.buyorders.aiSyncing")</span>
             </h6>
-            <p class="text-secondary small mb-0" style="font-size: 0.825rem;">Gemini is analyzing your receipt layout...</p>
+            <p class="text-secondary small mb-0" style="font-size: 0.825rem;">@L.T("finance.buyorders.geminiAnalyzing")</p>
         </div>
     </div>
 }
@@ -63,7 +62,7 @@
 
 @if (buyOrderList == null)
 {
-    <p><em>Loading...</em></p>
+    <p><em>@L.T("common.loading")</em></p>
 }
 else
 {
@@ -71,11 +70,11 @@ else
     <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
         <thead class="table-light text-secondary small text-uppercase tracking-wider">
             <tr>
-                <th class="ps-3">Description</th>
-                <th class="text-end">Market</th>
-                <th class="text-end">Total</th>
-                <th class="text-center" style="width: 150px;">Date</th>
-                <th class="text-end pe-3" style="width: 150px;">Actions</th>
+                <th class="ps-3">@L.T("common.description")</th>
+                <th class="text-end">@L.T("finance.buyorders.market")</th>
+                <th class="text-end">@L.T("common.total")</th>
+                <th class="text-center" style="width: 150px;">@L.T("common.date")</th>
+                <th class="text-end pe-3" style="width: 150px;">@L.T("common.actions")</th>
             </tr>
         </thead>
         <tbody>
@@ -98,7 +97,7 @@ else
                             {
                                 <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
                                     <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(buy.Id)">
-                                        <i class="bi bi-trash-fill me-1"></i> Delete
+                                        <i class="bi bi-trash-fill me-1"></i> @L.T("common.delete")
                                     </button>
                                     <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
                                         <i class="bi bi-x-lg"></i>
@@ -109,7 +108,7 @@ else
                             {
                                 <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
                                         @onclick="() => RequestDelete(buy.Id)">
-                                    <i class="bi bi-trash"></i> Delete
+                                    <i class="bi bi-trash"></i> @L.T("common.delete")
                                 </button>
                             }
                         </div>
@@ -126,7 +125,7 @@ else
         <div class="modal-dialog modal-dialog-centered" @onclick:stopPropagation="true" style="max-width: 450px;">
             <div class="modal-content border-0 shadow-lg rounded-3">
                 <div class="modal-header bg-light border-bottom-0 py-3 px-4">
-                    <h5 class="modal-title fw-bold text-dark fs-6">New Purchase Order</h5>
+                    <h5 class="modal-title fw-bold text-dark fs-6">@L.T("finance.buyorders.newPurchaseOrder")</h5>
                     <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
                 <div class="modal-body px-4 py-3">
@@ -134,18 +133,18 @@ else
                         <DataAnnotationsValidator />
 
                         <div class="mb-3">
-                            <label class="form-label small fw-medium text-secondary mb-1">Description</label>
+                            <label class="form-label small fw-medium text-secondary mb-1">@L.T("common.description")</label>
                             <InputText @bind-Value="NewOrder.Description" class="form-control form-control-sm" placeholder="e.g. Monthly Groceries" />
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label small fw-medium text-secondary mb-1">Market</label>
+                            <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.buyorders.market")</label>
                             <InputText @bind-Value="NewOrder.Market" class="form-control form-control-sm" placeholder="e.g. Pingo Doce" />
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
-                            <button type="button" class="btn btn-sm btn-light border" @onclick="CloseModal">Cancel</button>
-                            <button type="submit" class="btn btn-sm btn-primary">Save Order</button>
+                            <button type="button" class="btn btn-sm btn-light border" @onclick="CloseModal">@L.T("common.cancel")</button>
+                            <button type="submit" class="btn btn-sm btn-primary">@L.T("finance.buyorders.saveOrder")</button>
                         </div>
                     </EditForm>
                 </div>
@@ -159,6 +158,13 @@ else
 
 
 @code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLangChanged;
+    }
+    private void OnLangChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() { L.OnLanguageChanged -= OnLangChanged; }
+
     private List<BuyOrder>? buyOrderList;
     private bool IsVisible { get; set; }
     private BuyOrder NewOrder { get; set; } = new();

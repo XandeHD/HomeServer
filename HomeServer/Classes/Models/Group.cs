@@ -22,6 +22,6 @@ namespace HomeServer.Classes.Models
         [Required]
         public string CreatedBy { get; set; } = "Unknown";
 
-        public string InviteCode { get; set; }
+        public string? InviteCode { get; set; } = string.Empty;
     }
 }

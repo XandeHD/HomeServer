@@ -1,5 +1,7 @@
-﻿@page "/finance/load-expenses"
+@page "/finance/load-expenses"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using System.Text
 @using System.Text.Json
@@ -9,74 +11,73 @@
 @inject IDbContextFactory<DataContext> DbFactory
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
-<PageTitle>Load Expenses</PageTitle>
+<PageTitle>@L.T("finance.expenses.title") - Home Server</PageTitle>
 
 <InputFile id="expenseReceiptInput" OnChange="HandleReceiptSelected" class="d-none" accept="image/*" capture="environment" />
 
 @* Header Section *@
 <div class="d-flex justify-content-between align-items-end mb-3">
     <div>
-        <h1 class="h4 text-dark fw-semibold mb-0">Load Expenses</h1>
-        <p class="text-muted small mb-0">Track detailed itemizations for restaurants, retail, fixed bills, and general purchases.</p>
+        <h1 class="h4 text-dark fw-semibold mb-0">@L.T("finance.expenses.title")</h1>
+        <p class="text-muted small mb-0">@L.T("finance.expenses.subtitle")</p>
 
-        @* NOVO: Indicador visual do Contexto Atual (Solo vs Grupo) *@
         <div class="mt-2">
             @if (hasGroup)
             {
                 <span class="badge bg-success d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-people-fill"></i> Grupo Ativo (ID: @userGroupId)
+                    <i class="bi bi-people-fill"></i> @L.T("common.groupMode") (ID: @userGroupId)
                 </span>
             }
             else
             {
                 <span class="badge bg-secondary d-inline-flex align-items-center gap-1">
-                    <i class="bi bi-person-fill"></i> Modo Solo
+                    <i class="bi bi-person-fill"></i> @L.T("common.soloMode")
                 </span>
             }
         </div>
     </div>
 
     <div class="d-flex gap-2">
-        <button class="btn btn-sm btn-outline-primary @(currentFilterMode == FilterMode.All ? "active" : "")" @onclick="LoadExpensesFromDatabase">All</button>
-        <button class="btn btn-sm btn-outline-primary @(currentFilterMode == FilterMode.Recurring ? "active" : "")" @onclick="LoadRecurringExpenses">Monthly Only</button>
+        <button class="btn btn-sm btn-outline-primary @(currentFilterMode == FilterMode.All ? "active" : "")" @onclick="LoadExpensesFromDatabase">@L.T("finance.expenses.allExpenses")</button>
+        <button class="btn btn-sm btn-outline-primary @(currentFilterMode == FilterMode.Recurring ? "active" : "")" @onclick="LoadRecurringExpenses">@L.T("finance.expenses.monthlyOnly")</button>
     </div>
 
     <div class="d-flex gap-2">
         <label for="expenseReceiptInput" class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm style-pointer">
             <i class="bi bi-camera"></i>
-            <span class="small fw-medium">Scan Receipt</span>
+            <span class="small fw-medium">@L.T("finance.expenses.scanReceipt")</span>
         </label>
 
         <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenAddModal">
             <i class="bi bi-plus-lg small"></i>
-            <span class="small fw-medium">New Expense</span>
+            <span class="small fw-medium">@L.T("finance.expenses.newExpense")</span>
         </button>
     </div>
 </div>
 
-@* Date Filter Bar Section *@
+@* Date Filter Bar *@
 <div class="card p-3 mb-3 bg-white shadow-sm border border-light rounded">
     <div class="row g-2 align-items-end">
         <div class="col-sm-4">
-            <label class="form-label small fw-medium text-secondary mb-1">Start Date</label>
+            <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.expenses.startDate")</label>
             <input type="date" @bind="FilterStartDate" class="form-control form-control-sm" />
         </div>
         <div class="col-sm-4">
-            <label class="form-label small fw-medium text-secondary mb-1">End Date (Empty = Forever)</label>
+            <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.expenses.endDateForever")</label>
             <input type="date" @bind="FilterEndDate" class="form-control form-control-sm" />
         </div>
         <div class="col-sm-4 d-flex gap-2">
             <button class="btn btn-sm btn-primary flex-grow-1" @onclick="ApplyFilters">
-                <i class="bi bi-filter me-1"></i> Filter
+                <i class="bi bi-filter me-1"></i> @L.T("common.filter")
             </button>
             <button class="btn btn-sm btn-light border" @onclick="ClearFilters">
-                Clear
+                @L.T("common.clear")
             </button>
         </div>
     </div>
 </div>
 
-@* Compact Loading Animation Bar *@
+@* Loading Animation *@
 @if (isLoading)
 {
     <div class="d-flex align-items-center gap-3 my-3 p-3 border-0 rounded-3 shadow-sm position-relative overflow-hidden"
@@ -85,34 +86,34 @@
         <div class="spinner-grow text-primary flex-shrink-0" role="status" style="width: 1.8rem; height: 1.8rem;"></div>
         <div class="flex-grow-1">
             <h6 class="text-dark fw-bold mb-0 d-flex align-items-center gap-2">
-                Processing Receipt
-                <span class="badge rounded-pill bg-purple-light text-purple small fw-normal px-2 py-1" style="background-color: #f3e8ff; color: #6b21a8; font-size: 0.75rem;">AI Syncing</span>
+                @L.T("finance.buyorders.processingReceipt")
+                <span class="badge rounded-pill bg-purple-light text-purple small fw-normal px-2 py-1" style="background-color: #f3e8ff; color: #6b21a8; font-size: 0.75rem;">@L.T("finance.buyorders.aiSyncing")</span>
             </h6>
-            <p class="text-secondary small mb-0" style="font-size: 0.825rem;">Gemini is parsing line entries and total metrics...</p>
+            <p class="text-secondary small mb-0" style="font-size: 0.825rem;">@L.T("finance.expenses.geminiParsing")</p>
         </div>
     </div>
 }
 
-@* Main Expense History Log Table *@
+@* Expense Table *@
 @if (expensesHistory == null)
 {
-    <p class="text-muted small"><em>Loading expense history...</em></p>
+    <p class="text-muted small"><em>@L.T("common.loading")</em></p>
 }
 else if (!expensesHistory.Any())
 {
-    <p class="text-muted bg-white p-4 rounded shadow-sm text-center small border">No items recorded yet.</p>
+    <p class="text-muted bg-white p-4 rounded shadow-sm text-center small border">@L.T("finance.expenses.noItems")</p>
 }
 else
 {
     <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
         <thead class="table-light text-secondary small text-uppercase tracking-wider">
             <tr>
-                <th class="ps-3">Place / Business</th>
-                <th>Category</th>
-                <th>Details / Items</th>
-                <th class="text-center" style="width: 140px;">Date</th>
-                <th class="text-end" style="width: 120px;">Total</th>
-                <th class="text-end pe-3" style="width: 160px;">Actions</th>
+                <th class="ps-3">@L.T("finance.expenses.place")</th>
+                <th>@L.T("finance.expenses.category")</th>
+                <th>@L.T("finance.expenses.details")</th>
+                <th class="text-center" style="width: 140px;">@L.T("common.date")</th>
+                <th class="text-end" style="width: 120px;">@L.T("common.total")</th>
+                <th class="text-end pe-3" style="width: 160px;">@L.T("common.actions")</th>
             </tr>
         </thead>
         <tbody>
@@ -123,14 +124,14 @@ else
                         @exp.Place
                         @if (exp.IsRecurring)
                         {
-                            <i class="bi bi-arrow-counterclockwise text-primary ms-1 small" title="Monthly Recurring Expense"></i>
+                            <i class="bi bi-arrow-counterclockwise text-primary ms-1 small" title="@L.T("finance.expenses.monthlyRecurringTitle")"></i>
                         }
                     </td>
-                    <td><span class="badge bg-light text-dark border px-2 py-1 small fw-normal">@exp.Category</span></td>
+                    <td><span class="badge bg-light text-dark border px-2 py-1 small fw-normal">@L.T($"finance.expenses.categories.{exp.Category.ToLower()}", exp.Category)</span></td>
                     <td class="text-secondary small">
                         @if (exp.Lines != null && exp.Lines.Any())
                         {
-                            <span class="text-primary fw-medium">@exp.Lines.Count items</span>
+                            <span class="text-primary fw-medium">@exp.Lines.Count @L.T("finance.expenses.items")</span>
                             <span class="text-muted text-xs">(@string.Join(", ", exp.Lines.Take(2).Select(l => l.Description))...)</span>
                         }
                         else
@@ -146,7 +147,7 @@ else
                             {
                                 <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
                                     <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(exp.Id)">
-                                        <i class="bi bi-trash-fill me-1"></i> Delete
+                                        <i class="bi bi-trash-fill me-1"></i> @L.T("common.delete")
                                     </button>
                                     <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete"><i class="bi bi-x-lg"></i></button>
                                 </div>
@@ -154,7 +155,7 @@ else
                             else
                             {
                                 <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none p-1 small me-1" @onclick="() => OpenEditModal(exp)">
-                                    <i class="bi bi-pencil-square"></i> Edit
+                                    <i class="bi bi-pencil-square"></i> @L.T("common.edit")
                                 </button>
                                 <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1 small" @onclick="() => RequestDelete(exp.Id)">
                                     <i class="bi bi-trash"></i>
@@ -168,7 +169,7 @@ else
     </table>
 }
 
-@* Unified Dialog Modal Management Block *@
+@* Modal *@
 @if (IsVisible)
 {
     <div class="modal fade show d-block" style="background-color: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px);" @onclick="CloseModal">
@@ -176,7 +177,7 @@ else
             <div class="modal-content border-0 shadow-lg rounded-3">
                 <div class="modal-header bg-light border-bottom-0 py-3 px-4">
                     <h5 class="modal-title fw-bold text-dark fs-6">
-                        @((currentExpense.Id == 0) ? "Register New Expense" : "Modify Expense Entry")
+                        @((currentExpense.Id == 0) ? L.T("finance.expenses.registerNew") : L.T("finance.expenses.modifyEntry"))
                     </h5>
                     <button type="button" class="btn-close" @onclick="CloseModal"></button>
                 </div>
@@ -186,62 +187,62 @@ else
 
                         <div class="row g-2 mb-2">
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Place / Business *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.expenses.place") *</label>
                                 <InputText @bind-Value="currentExpense.Place" class="form-control form-control-sm" placeholder="Business Name" />
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Date *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("common.date") *</label>
                                 <InputDate @bind-Value="currentExpense.Date" class="form-control form-control-sm" />
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Category *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.expenses.category") *</label>
                                 <InputSelect @bind-Value="currentExpense.Category" class="form-control form-control-sm">
-                                    <option value="Restaurant">Restaurant / Cafe</option>
-                                    <option value="Shopping">Shopping (Non-Food)</option>
-                                    <option value="Transport">Transport / Fuel</option>
-                                    <option value="Medic">Medic</option>
-                                    <option value="Pharmacy">Pharmacy</option>
-                                    <option value="Games">Games</option>
-                                    <option value="Clothes">Clothes</option>
-                                    <option value="Technology">Technology</option>
-                                    <option value="Home">Home</option>
-                                    <option value="Savings">Savings</option>
-                                    <option value="Other">Other Services</option>
+                                    <option value="Restaurant">@L.T("finance.expenses.categories.restaurant")</option>
+                                    <option value="Shopping">@L.T("finance.expenses.categories.shopping")</option>
+                                    <option value="Transport">@L.T("finance.expenses.categories.transport")</option>
+                                    <option value="Medic">@L.T("finance.expenses.categories.medic")</option>
+                                    <option value="Pharmacy">@L.T("finance.expenses.categories.pharmacy")</option>
+                                    <option value="Games">@L.T("finance.expenses.categories.games")</option>
+                                    <option value="Clothes">@L.T("finance.expenses.categories.clothes")</option>
+                                    <option value="Technology">@L.T("finance.expenses.categories.technology")</option>
+                                    <option value="Home">@L.T("finance.expenses.categories.home")</option>
+                                    <option value="Savings">@L.T("finance.expenses.categories.savings")</option>
+                                    <option value="Other">@L.T("finance.expenses.categories.other")</option>
                                 </InputSelect>
                             </div>
                         </div>
 
                         <div class="row g-2 mb-3 align-items-end">
                             <div class="col-sm-6">
-                                <label class="form-label small fw-medium text-secondary mb-1">General Context / Notes</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.expenses.generalNotes")</label>
                                 <InputText @bind-Value="currentExpense.Description" class="form-control form-control-sm" placeholder="Overall entry details..." />
                             </div>
                             <div class="col-sm-3">
                                 <div class="form-check form-switch bg-white border rounded d-flex align-items-center justify-content-start gap-2 shadow-sm" style="height: 31px; padding-left: 2.75rem;">
                                     <InputCheckbox @bind-Value="currentExpense.IsRecurring" class="form-check-input style-pointer m-0" id="isRecurringCheck" style="margin-left: -2rem !important;" />
-                                    <label class="form-check-label small fw-semibold text-dark style-pointer select-none mb-0 text-nowrap" for="isRecurringCheck">Monthly Bill</label>
+                                    <label class="form-check-label small fw-semibold text-dark style-pointer select-none mb-0 text-nowrap" for="isRecurringCheck">@L.T("finance.expenses.monthlyBill")</label>
                                 </div>
                             </div>
                             <div class="col-sm-3">
-                                <label class="form-label small fw-medium text-danger mb-1">End Date (Optional)</label>
+                                <label class="form-label small fw-medium text-danger mb-1">@L.T("finance.expenses.endDateOptional")</label>
                                 <InputDate @bind-Value="currentExpense.EndDate" class="form-control form-control-sm border-danger text-danger" />
                             </div>
                         </div>
 
-                        @* Itemized Line Breakdown Section *@
+                        @* Itemized Lines *@
                         <div class="border rounded p-3 bg-light mb-3">
                             <h6 class="fw-bold text-dark mb-2 small d-flex justify-content-between align-items-center">
-                                <span><i class="bi bi-list-ul me-1 text-primary"></i> Itemized Line Details</span>
-                                <span class="text-muted fw-normal font-monospace text-xs">Total from lines: €@LineItemSum.ToString("F2")</span>
+                                <span><i class="bi bi-list-ul me-1 text-primary"></i> @L.T("finance.expenses.itemizedDetails")</span>
+                                <span class="text-muted fw-normal font-monospace text-xs">@L.T("finance.expenses.totalFromLines") €@LineItemSum.ToString("F2")</span>
                             </h6>
 
                             <table class="table table-sm align-middle bg-white rounded border mb-2">
                                 <thead class="table-light text-secondary font-monospace" style="font-size: 0.75rem;">
                                     <tr>
-                                        <th class="ps-2">Description / Consumed Item</th>
-                                        <th class="text-center" style="width: 80px;">Qty</th>
-                                        <th class="text-end" style="width: 100px;">Price (€)</th>
-                                        <th class="text-end" style="width: 100px;">Total</th>
+                                        <th class="ps-2">@L.T("finance.expenses.itemDescription")</th>
+                                        <th class="text-center" style="width: 80px;">@L.T("finance.expenses.quantity")</th>
+                                        <th class="text-end" style="width: 100px;">@L.T("finance.expenses.price") (€)</th>
+                                        <th class="text-end" style="width: 100px;">@L.T("common.total")</th>
                                         <th class="text-center" style="width: 50px;"></th>
                                     </tr>
                                 </thead>
@@ -249,7 +250,7 @@ else
                                     @if (currentExpense.Lines == null || !currentExpense.Lines.Any())
                                     {
                                         <tr>
-                                            <td colspan="5" class="text-center text-muted py-2 small">No items added yet. Enter items below or verify totals manually.</td>
+                                            <td colspan="5" class="text-center text-muted py-2 small">@L.T("finance.expenses.noItemsAdded")</td>
                                         </tr>
                                     }
                                     else
@@ -293,14 +294,14 @@ else
                         <div class="row align-items-center pt-2">
                             <div class="col-6">
                                 <div class="d-flex align-items-center gap-2">
-                                    <label class="form-label small fw-bold text-dark mb-0 text-nowrap">Final Total Cost (€) *</label>
+                                    <label class="form-label small fw-bold text-dark mb-0 text-nowrap">@L.T("finance.expenses.finalTotalCost")</label>
                                     <InputNumber @bind-Value="currentExpense.Total" class="form-control form-control-sm text-end fw-bold text-primary" style="max-width: 130px;" step="0.01" />
                                 </div>
                             </div>
                             <div class="col-6 d-flex justify-content-end gap-2">
-                                <button type="button" class="btn btn-sm btn-light border" @onclick="CloseModal">Cancel</button>
+                                <button type="button" class="btn btn-sm btn-light border" @onclick="CloseModal">@L.T("common.cancel")</button>
                                 <button type="submit" class="btn btn-sm btn-primary px-3">
-                                    @((currentExpense.Id == 0) ? "Save Expense" : "Update Changes")
+                                    @((currentExpense.Id == 0) ? L.T("finance.expenses.saveExpense") : L.T("finance.expenses.updateChanges"))
                                 </button>
                             </div>
                         </div>
@@ -312,6 +313,13 @@ else
 }
 
 @code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLangChanged;
+    }
+    private void OnLangChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() { L.OnLanguageChanged -= OnLangChanged; }
+
     private List<Expense>? expensesHistory;
     private Expense currentExpense { get; set; } = new() { Lines = new List<ExpenseLine>() };
 
@@ -323,12 +331,10 @@ else
     private bool isLoading = false;
     private int deleteTargetId = 0;
 
-    // NOVO: Propriedades para controlo de Contexto e Sessão
     private int loggedUserId;
     private int userGroupId;
     private bool hasGroup = false;
 
-    // Filter properties
     private DateTime? FilterStartDate { get; set; }
     private DateTime? FilterEndDate { get; set; }
     private FilterMode currentFilterMode = FilterMode.All;
@@ -343,7 +349,6 @@ else
         await FetchData();
     }
 
-    // NOVO: Lê os dados do Cookie de autenticação gerados no Login
     private async Task LoadUserSessionData()
     {
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -351,14 +356,12 @@ else
 
         if (user.Identity?.IsAuthenticated == true)
         {
-            // Extrai o ID do Utilizador
             var userIdStr = user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId))
             {
                 loggedUserId = userId;
             }
 
-            // Extrai o ID do Grupo (se existir)
             var groupIdStr = user.FindFirst(ClaimTypes.GroupSid)?.Value;
             if (!string.IsNullOrEmpty(groupIdStr) && int.TryParse(groupIdStr, out int groupId))
             {
@@ -370,17 +373,14 @@ else
 
     private async Task FetchData()
     {
-        if (loggedUserId == 0) return; // Utilizador não autenticado de forma válida
+        if (loggedUserId == 0) return;
 
         using var db = await DbFactory.CreateDbContextAsync();
 
-        // Iniciamos a query incluindo os sub-itens das linhas
         var query = db.Expenses.Include(e => e.Lines).AsQueryable();
 
-        // MODIFICAÇÃO PRINCIPAL: Regra Solo vs Grupo
         if (hasGroup)
         {
-            // MODO GRUPO: Carrega despesas cujo UserId pertença à lista de membros do grupo ativo
             var membrosDoGrupo = db.GroupUsers
                 .Where(gu => gu.GroupId == userGroupId)
                 .Select(gu => gu.UserId);
@@ -389,17 +389,14 @@ else
         }
         else
         {
-            // MODO SOLO: Carrega estritamente as despesas do utilizador logado
             query = query.Where(e => e.UserId == loggedUserId);
         }
 
-        // Aplicar o filtro de visualização principal (Tudo vs Apenas Recorrentes)
         if (currentFilterMode == FilterMode.Recurring)
         {
             query = query.Where(e => e.IsRecurring == true);
         }
 
-        // Aplicar filtros de intervalo de datas dinâmicos
         if (FilterStartDate.HasValue)
         {
             query = query.Where(e => e.Date >= FilterStartDate.Value);
@@ -444,7 +441,7 @@ else
             Date = DateTime.Now,
             Category = "Restaurant",
             IsRecurring = false,
-            UserId = loggedUserId, // NOVO: Garante o vínculo da nova despesa ao utilizador logado
+            UserId = loggedUserId,
             Lines = new List<ExpenseLine>()
         };
         ResetLineInputs();
@@ -456,7 +453,7 @@ else
         currentExpense = new Expense
         {
             Id = target.Id,
-            UserId = target.UserId, // Mantém o dono original
+            UserId = target.UserId,
             Place = target.Place,
             Description = target.Description,
             Date = target.Date,
@@ -586,11 +583,7 @@ else
 
             string prompt = @"Extract global information and item breakdowns from this receipt...";
 
-            var requestBody = new { /* ... Mantém-se o corpo do pedido original ... */ };
-
-            // ... Lógica de chamada à API e gravação ...
-            // Importante: No objeto criado a partir da AI, lembra-te de fixar:
-            // newExpense.UserId = loggedUserId;
+            var requestBody = new { /* ... */ };
         }
         catch (Exception ex)
         {

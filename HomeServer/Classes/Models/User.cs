@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace HomeServer.Data.Models
@@ -23,5 +23,12 @@ namespace HomeServer.Data.Models
 
         [MaxLength(50)]
         public string Theme { get; set; } = "default";
+
+        /// <summary>
+        /// Código da língua preferida: "pt" | "en" | "es"
+        /// Guardado na BD para persistir entre sessões.
+        /// </summary>
+        [MaxLength(10)]
+        public string Language { get; set; } = "pt";
     }
 }

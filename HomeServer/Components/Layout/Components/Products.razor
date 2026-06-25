@@ -1,38 +1,39 @@
 ﻿@page "/products"
-@attribute [StreamRendering]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore;
 
 @inject IDbContextFactory<DataContext> DbFactory
 
-<PageTitle>Products</PageTitle>
+<PageTitle>@L.T("products.title") - Home Server</PageTitle>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h1 class="h4 text-dark fw-semibold mb-0">Products</h1>
-        <p class="text-muted small mb-0">Listagem de todos os produtos presentes no sistema.</p>
+        <h1 class="h4 text-dark fw-semibold mb-0">@L.T("products.title")</h1>
+        <p class="text-muted small mb-0">@L.T("products.subtitle")</p>
     </div>
 
     @* Elevated Add Product Button *@
     <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenModal">
         <i class="bi bi-plus-lg small"></i>
-        <span class="small fw-medium">Add Product</span>
+        <span class="small fw-medium">@L.T("products.addProduct")</span>
     </button>
 </div>
 
 @if (productsList == null)
 {
-    <p><em>Loading...</em></p>
+    <p><em>@L.T("common.loading")</em></p>
 }
 else
 {
     <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
         <thead class="table-light text-secondary small text-uppercase tracking-wider">
             <tr>
-                <th class="ps-3">Name</th>
-                <th class="text-end" style="width: 120px;">Price</th>
-                <th class="text-center" style="width: 120px;">Energy</th>
-                <th class="text-end pe-3" style="width: 180px;">Actions</th>
+                <th class="ps-3">@L.T("products.name")</th>
+                <th class="text-end" style="width: 120px;">@L.T("products.price")</th>
+                <th class="text-center" style="width: 120px;">@L.T("products.energy")</th>
+                <th class="text-end pe-3" style="width: 180px;">@L.T("common.actions")</th>
             </tr>
         </thead>
         <tbody>
@@ -72,7 +73,7 @@ else
                             {
                                 <button class="btn btn-sm btn-link text-secondary text-decoration-none p-1"
                                         @onclick="() => OpenEditModal(prod)" title="Edit item">
-                                    <i class="bi bi-pencil-square"></i> Edit
+                                    <i class="bi bi-pencil-square"></i> @L.T("common.edit")
                                 </button>
                             }
 
@@ -81,7 +82,7 @@ else
                                 @* Step 2: Unified Confirmation Button Pill *@
                                 <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
                                     <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(prod)">
-                                        <i class="bi bi-trash-fill me-1"></i> Delete
+                                        <i class="bi bi-trash-fill me-1"></i> @L.T("common.delete")
                                     </button>
                                     <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
                                         <i class="bi bi-x-lg"></i>
@@ -93,7 +94,7 @@ else
                                 @* Step 1: Default Delete link *@
                                 <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
                                         @onclick="() => RequestDelete(prod.Id)" title="Delete Item">
-                                    <i class="bi bi-trash"></i> Delete
+                                    <i class="bi bi-trash"></i> @L.T("common.delete")
                                 </button>
                             }
                         </div>
@@ -115,7 +116,7 @@ else
                 <div class="modal-header bg-light border-bottom-0 py-3 px-4">
                     <h5 class="modal-title fw-bold text-dark fs-6 d-flex align-items-center gap-2">
                         <i class="bi @(NewItem.Id == 0 ? "bi-plus-circle" : "bi-pencil-square") text-primary"></i>
-                        @(NewItem.Id == 0 ? "Add New Product" : "Edit Product")
+                        @(NewItem.Id == 0 ? L.T("products.addNew") : L.T("products.editProduct"))
                     </h5>
                     <button type="button" class="btn-close fs-7" @onclick="CloseModal" aria-label="Close"></button>
                 </div>
@@ -130,7 +131,7 @@ else
 
                         @* 1. Product Name Input *@
                         <div class="mb-3">
-                            <label class="form-label small fw-medium text-secondary mb-1">Product Name</label>
+                            <label class="form-label small fw-medium text-secondary mb-1">@L.T("products.productName")</label>
                             <div class="input-group input-group-sm">
                                 <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-tag"></i></span>
                                 <InputText @bind-Value="NewItem.Name" class="form-control border-start-0 ps-0" placeholder="e.g. Apple" />
@@ -141,7 +142,7 @@ else
                         <div class="row g-3 mb-4">
                             @* Price Column *@
                             <div class="col-6">
-                                <label class="form-label small fw-medium text-secondary mb-1">Price</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("products.price")</label>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-white border-end-0 text-muted">€</span>
                                     <InputNumber @bind-Value="NewItem.Price" class="form-control border-start-0 ps-0" placeholder="0.00" />
@@ -150,7 +151,7 @@ else
 
                             @* Calories Column *@
                             <div class="col-6">
-                                <label class="form-label small fw-medium text-secondary mb-1">Calories (kCals)</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("products.calories")</label>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-fire text-warning"></i></span>
                                     <InputNumber @bind-Value="NewItem.KCal" class="form-control border-start-0 ps-1" placeholder="Optional" />
@@ -161,10 +162,10 @@ else
                         @* Modal Footer/Actions Layout *@
                         <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
                             <button type="button" class="btn btn-sm btn-light text-secondary border px-3" @onclick="CloseModal">
-                                Cancel
+                                @L.T("common.cancel")
                             </button>
                             <button type="submit" class="btn btn-sm btn-primary px-3 fw-medium d-inline-flex align-items-center gap-1">
-                                <i class="bi bi-check-lg"></i> Save Product
+                                <i class="bi bi-check-lg"></i> @L.T("products.saveProduct")
                             </button>
                         </div>
                     </EditForm>
@@ -176,6 +177,13 @@ else
 }
 
 @code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLangChanged;
+    }
+    private void OnLangChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() { L.OnLanguageChanged -= OnLangChanged; }
+
     private List<Product>? productsList = new List<Product>();    
 
     private bool IsVisible { get; set; }

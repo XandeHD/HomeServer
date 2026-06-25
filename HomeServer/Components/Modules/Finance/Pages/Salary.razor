@@ -1,24 +1,26 @@
 ﻿@page "/finance/salary"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using System.Security.Claims
 @using SalaryModel = HomeServer.Data.Models.Salary
 @using HomeServer.Classes.Enums
 @inject IDbContextFactory<DataContext> DbFactory
 
-<PageTitle>Salary Management</PageTitle>
+<PageTitle>@L.T("finance.salary.title") - Home Server</PageTitle>
 
 <div class="container-fluid max-width-container mt-3">
     @* Header Section *@
     <div class="d-flex justify-content-between align-items-end mb-4">
         <div>
-            <h1 class="h4 text-dark fw-semibold mb-0">Salary Records</h1>
-            <p class="text-muted small mb-0">Log your income sources and track your payroll history over time.</p>
+            <h1 class="h4 text-dark fw-semibold mb-0">@L.T("finance.salary.title")</h1>
+            <p class="text-muted small mb-0">@L.T("finance.salary.subtitle")</p>
         </div>
         <div>
             <button type="button" class="btn btn-sm btn-primary d-inline-flex align-items-center gap-1 px-2.5 py-1.5 shadow-sm" @onclick="OpenModal">
                 <i class="bi bi-plus-lg small"></i>
-                <span class="small fw-medium">New Salary</span>
+                <span class="small fw-medium">@L.T("finance.salary.newSalary")</span>
             </button>
         </div>
     </div>
@@ -26,11 +28,11 @@
     @* Clean History Table *@
     @if (salaryHistory == null)
     {
-        <p class="text-muted small"><em>Loading history...</em></p>
+        <p class="text-muted small"><em>@L.T("common.loadingHistory")</em></p>
     }
     else if (!salaryHistory.Any())
     {
-        <p class="text-muted bg-white p-4 rounded shadow-sm text-center small border">No salary records entries found.</p>
+        <p class="text-muted bg-white p-4 rounded shadow-sm text-center small border">@L.T("finance.salary.noRecords")</p>
     }
     else
     {
@@ -38,13 +40,13 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light text-secondary small text-uppercase tracking-wider">
                     <tr>
-                        <th class="ps-3 text-center" style="width: 100px;">Status</th>
-                        <th style="width: 120px;">Person</th>
-                        <th style="width: 150px;">Type</th>
-                        <th>Description / Source</th>
-                        <th class="text-center" style="width: 150px;">Date</th>
-                        <th class="text-end" style="width: 150px;">Net Amount</th>
-                        <th class="text-end pe-3" style="width: 180px;">Actions</th>
+                        <th class="ps-3 text-center" style="width: 100px;">@L.T("common.status")</th>
+                        <th style="width: 120px;">@L.T("common.person")</th>
+                        <th style="width: 150px;">@L.T("common.type")</th>
+                        <th>@L.T("finance.salary.source")</th>
+                        <th class="text-center" style="width: 150px;">@L.T("common.date")</th>
+                        <th class="text-end" style="width: 150px;">@L.T("finance.salary.netAmount")</th>
+                        <th class="text-end pe-3" style="width: 180px;">@L.T("common.actions")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -61,7 +63,7 @@
                             <td class="fw-bold text-secondary">
                                 <span class="badge bg-primary-subtle text-primary rounded-pill">
                                     @* Aqui podes mapear o ID para o Nome se preferires mostrar o texto amigável *@
-                                    @(MembrosContexto.FirstOrDefault(m => Convert.ToInt32(m.Id) == sal.UserId)?.Nome ?? "User desconhecido")
+                                    @(MembrosContexto.FirstOrDefault(m => Convert.ToInt32(m.Id) == sal.UserId)?.Nome ?? L.T("finance.salary.unknownUser"))
                                 </span>
                             </td>
                             <td>
@@ -70,10 +72,10 @@
                                 </span>
                             </td>
                             <td class="fw-medium text-dark">
-                                @(string.IsNullOrWhiteSpace(sal.Description) ? "Monthly Salary" : sal.Description)
+                                @(string.IsNullOrWhiteSpace(sal.Description) ? L.T("finance.salary.defaultDescription") : sal.Description)
                                 @if (sal.IsActive == true)
                                 {
-                                    <span class="badge bg-success-subtle text-success ms-2 font-monospace" style="font-size: 0.7rem;">Active</span>
+                                    <span class="badge bg-success-subtle text-success ms-2 font-monospace" style="font-size: 0.7rem;">@L.T("finance.salary.activeLabel")</span>
                                 }
                             </td>
                             <td class="text-center text-muted small">@sal.Date.ToString("dd-MM-yyyy")</td>
@@ -84,7 +86,7 @@
                                     {
                                         <button class="btn btn-sm btn-link text-secondary text-decoration-none p-1"
                                                 @onclick="() => OpenEditModal(sal)" title="Edit item">
-                                            <i class="bi bi-pencil-square"></i> Edit
+                                            <i class="bi bi-pencil-square"></i> @L.T("common.edit")
                                         </button>
                                     }
 
@@ -92,7 +94,7 @@
                                     {
                                         <div class="btn-group btn-group-sm shadow-sm border border-danger rounded overflow-hidden">
                                             <button type="button" class="btn btn-danger px-2" @onclick="() => ConfirmDelete(sal.Id)">
-                                                <i class="bi bi-trash-fill me-1"></i> Delete
+                                                <i class="bi bi-trash-fill me-1"></i> @L.T("common.delete")
                                             </button>
                                             <button type="button" class="btn btn-light px-2 text-muted" @onclick="CancelDelete">
                                                 <i class="bi bi-x-lg"></i>
@@ -103,7 +105,7 @@
                                     {
                                         <button type="button" class="btn btn-sm btn-link text-danger text-decoration-none p-1"
                                                 @onclick="() => RequestDelete(sal.Id)" title="Delete Item">
-                                            <i class="bi bi-trash"></i> Delete
+                                            <i class="bi bi-trash"></i> @L.T("common.delete")
                                         </button>
                                     }
                                 </div>
@@ -126,7 +128,7 @@
                 <div class="modal-header bg-light border-bottom-0 py-3 px-4">
                     <h5 class="modal-title fw-bold text-dark fs-6 d-flex align-items-center gap-2">
                         <i class="bi @(newSalary.Id == 0 ? "bi-plus-circle" : "bi-pencil-square") text-primary"></i>
-                        @(newSalary.Id == 0 ? "Register New Salary" : "Modify Salary Entry")
+                        @(newSalary.Id == 0 ? L.T("finance.salary.registerNew") : L.T("finance.salary.modifyEntry"))
                     </h5>
                     <button type="button" class="btn-close fs-7" @onclick="CloseModal" aria-label="Close"></button>
                 </div>
@@ -138,11 +140,11 @@
 
                         <div class="row g-2 mb-3">
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Person *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("common.person") *</label>
                                 <InputSelect @bind-Value="newSalary.UserId" class="form-select form-select-sm">
                                     @if (!MembrosContexto.Any())
                                     {
-                                        <option value="">Loading users...</option>
+                                        <option value="">@L.T("finance.salary.loadingUsers")</option>
                                     }
                                     @foreach (var membro in MembrosContexto)
                                     {
@@ -151,7 +153,7 @@
                                 </InputSelect>
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Type *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("common.type") *</label>
                                 <InputSelect @bind-Value="newSalary.Type" class="form-select form-select-sm">
                                     @foreach (SalaryType type in Enum.GetValues(typeof(SalaryType)))
                                     {
@@ -160,21 +162,21 @@
                                 </InputSelect>
                             </div>
                             <div class="col-sm-4">
-                                <label class="form-label small fw-medium text-secondary mb-1">Source / Employer *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.salary.source") *</label>
                                 <InputText @bind-Value="newSalary.Description" class="form-control form-control-sm" placeholder="e.g., Main Job, Freelance" />
                             </div>
                         </div>
 
                         <div class="row g-2 mb-3">
                             <div class="col-sm-6">
-                                <label class="form-label small fw-medium text-secondary mb-1">Amount (€) *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("common.amount") (€) *</label>
                                 <div class="input-group input-group-sm">
                                     <span class="input-group-text bg-white border-end-0 text-muted">€</span>
                                     <InputNumber TValue="float" @bind-Value="newSalary.Amount" class="form-control border-start-0 ps-0 text-end fw-bold text-success" placeholder="0.00" />
                                 </div>
                             </div>
                             <div class="col-sm-6">
-                                <label class="form-label small fw-medium text-secondary mb-1">Pay Date *</label>
+                                <label class="form-label small fw-medium text-secondary mb-1">@L.T("finance.salary.payDate") *</label>
                                 <InputDate @bind-Value="newSalary.Date" class="form-control form-control-sm" />
                             </div>
                         </div>
@@ -185,17 +187,17 @@
                                     <input type="checkbox" class="form-check-input m-0 style-pointer" id="isActiveCheck"
                                            checked="@(newSalary.IsActive ?? false)"
                                            @onchange="(e) => { newSalary.IsActive = (bool)(e.Value ?? false); }" />
-                                    <label class="form-check-label small fw-semibold text-dark style-pointer" for="isActiveCheck">Set as Active Current Salary</label>
+                                    <label class="form-check-label small fw-semibold text-dark style-pointer" for="isActiveCheck">@L.T("finance.salary.setActive")</label>
                                 </div>
                             </div>
                         </div>
 
                         <div class="d-flex justify-content-end gap-2 border-top pt-3 mt-2">
                             <button type="button" class="btn btn-sm btn-light text-secondary border px-3" @onclick="CloseModal">
-                                Cancel
+                                @L.T("common.cancel")
                             </button>
                             <button type="submit" class="btn btn-sm btn-primary px-3 fw-medium d-inline-flex align-items-center gap-1">
-                                <i class="bi bi-check-lg"></i> @(newSalary.Id == 0 ? "Save Salary" : "Update Changes")
+                                <i class="bi bi-check-lg"></i> @(newSalary.Id == 0 ? L.T("finance.salary.saveSalary") : L.T("finance.salary.updateSalary"))
                             </button>
                         </div>
                     </EditForm>
@@ -206,6 +208,13 @@
 }
 
 @code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLangChanged;
+    }
+    private void OnLangChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() { L.OnLanguageChanged -= OnLangChanged; }
+
     private bool IsVisible = false;
     private List<SalaryModel>? salaryHistory;
     private SalaryModel newSalary { get; set; } = new();
@@ -278,7 +287,7 @@
             // Define o Owner por defeito como o ID do utilizador logado (se estiver na lista)
             UserId = Convert.ToInt32(MembrosContexto.FirstOrDefault()?.Id),
             Date = DateTime.Today,
-            Description = "Monthly Salary",
+            Description = L.T("finance.salary.defaultDescription"),
             Type = SalaryType.Trabalho,
             IsActive = true
         };

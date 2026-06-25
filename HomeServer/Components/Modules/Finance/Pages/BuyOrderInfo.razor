@@ -1,6 +1,7 @@
 ﻿@page "/finance/buyorder/{Id:int}"
-@attribute [StreamRendering]
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @rendermode InteractiveServer
+@implements IDisposable
 @using Classes.Models
 @using Data.Models
 @using Microsoft.EntityFrameworkCore
@@ -12,18 +13,18 @@
 <div class="card border-0 shadow-sm bg-white rounded p-4 mb-4">
     <div class="row align-items-center">
         <div class="col-md-6">
-            <span class="text-uppercase text-secondary small tracking-wider fw-bold">Order Details</span>
-            <h1 class="h2 text-dark fw-bold mb-1">Buy Order #@Id</h1>
-            <p class="text-muted small mb-md-0"><i class="bi bi-calendar3 me-1"></i> @(orderHeader?.Date.ToString("dd-MM-yyyy") ?? "Loading...")</p>
+            <span class="text-uppercase text-secondary small tracking-wider fw-bold">@L.T("finance.buyordersinfo.orderDetails")</span>
+            <h1 class="h2 text-dark fw-bold mb-1">@L.T("finance.buyordersinfo.orderDetails") #@Id</h1>
+            <p class="text-muted small mb-md-0"><i class="bi bi-calendar3 me-1"></i> @(orderHeader?.Date.ToString("dd-MM-yyyy") ?? L.T("common.loading"))</p>
         </div>
 
         <div class="col-md-6 text-md-end mt-3 mt-md-0">
             <div class="d-inline-block text-start me-4">
-                <span class="text-muted small d-block">Market</span>
+                <span class="text-muted small d-block">@L.T("finance.buyordersinfo.market")</span>
                 <span class="fs-5 fw-semibold text-secondary"><i class="bi bi-shop me-1"></i> @(orderHeader?.Market ?? "---")</span>
             </div>
             <div class="d-inline-block text-start border-start ps-4">
-                <span class="text-muted small d-block">Total</span>
+                <span class="text-muted small d-block">@L.T("common.total")</span>
                 <span class="fs-4 fw-bold text-primary">€@(orderHeader?.Total.ToString("F2") ?? "0.00")</span>
             </div>
         </div>
@@ -32,22 +33,22 @@
 
 @if (orderLines == null)
 {
-    <p><em>Loading order lines...</em></p>
+    <p><em>@L.T("finance.buyordersinfo.loadingLines")</em></p>
 }
 else if (!orderLines.Any())
 {
-    <p><em>This order has no products.</em></p>
+    <p><em>@L.T("finance.buyordersinfo.noProducts")</em></p>
 }
 else
 {
     <table class="table table-hover align-middle border-top border-light shadow-sm bg-white rounded">
         <thead class="table-light text-secondary small text-uppercase tracking-wider">
             <tr>
-                <th class="ps-3">Description</th>
-                <th class="text-center" style="width: 120px;">Quantity</th>
-                <th class="text-center" style="width: 100px;">Unit</th>
-                <th class="text-end" style="width: 120px;">Price</th>
-                <th class="text-end pe-3" style="width: 150px;">Total linha</th>
+                <th class="ps-3">@L.T("common.description")</th>
+                <th class="text-center" style="width: 120px;">@L.T("finance.buyordersinfo.quantity")</th>
+                <th class="text-center" style="width: 100px;">@L.T("finance.buyordersinfo.unit")</th>
+                <th class="text-end" style="width: 120px;">@L.T("finance.expenses.price")</th>
+                <th class="text-end pe-3" style="width: 150px;">@L.T("finance.buyordersinfo.lineTotal")</th>
             </tr>
         </thead>
         <tbody>
@@ -68,6 +69,13 @@ else
 }
 
 @code {
+    protected override void OnInitialized()
+    {
+        L.OnLanguageChanged += OnLangChanged;
+    }
+    private void OnLangChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() { L.OnLanguageChanged -= OnLangChanged; }
+
     [Parameter]
     public int Id { get; set; }
 
@@ -87,7 +95,7 @@ else
             // Fetch explicitly using raw SQL to see if it bypasses the alias issue
             // If SQLite expects 'id' or 'ID' instead of 'Id', we bypass the EF Core LINQ translator mapping
             orderLines = await db.BuyOrderLines
-                .FromSqlRaw("SELECT * FROM BuyOrderLines WHERE OrderId = {0}", Id)
+                .Where(l => l.BuyOrderId == Id)
                 .ToListAsync();
         }
         catch (Exception ex)

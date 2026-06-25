@@ -1,25 +1,37 @@
-﻿using HomeServer.Classes.Models;
+using HomeServer.Classes.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HomeServer.Data.Models
 {
     public class DataContext : DbContext
     {
-        protected readonly IConfiguration Configuration;
-
-        public DataContext(IConfiguration configuration)
+        public DataContext(DbContextOptions<DataContext> options) : base(options)
         {
-            Configuration = configuration;
-        }
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder.UseSqlite(Configuration.GetConnectionString("DefaultConnection"));
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<GroupUser>()
                 .HasKey(gu => new { gu.GroupId, gu.UserId });
+
+            // Índices para melhorar performance em queries frequentes
+            modelBuilder.Entity<Expense>()
+                .HasIndex(e => e.UserId);
+
+            modelBuilder.Entity<Expense>()
+                .HasIndex(e => new { e.UserId, e.Date });
+
+            modelBuilder.Entity<BuyOrder>()
+                .HasIndex(b => b.UserId);
+
+            modelBuilder.Entity<Salary>()
+                .HasIndex(s => s.UserId);
+
+            modelBuilder.Entity<GroupUser>()
+                .HasIndex(gu => gu.UserId);
+
+            modelBuilder.Entity<StockPosition>()
+                .HasIndex(sp => sp.UserId);
         }
 
         public DbSet<Product> Products { get; set; }

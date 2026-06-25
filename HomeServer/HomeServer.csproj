@@ -1,10 +1,11 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
 	<WasmBuildNative>true</WasmBuildNative>
+    <UserSecretsId>f3db260f-7db2-40cf-a224-5f3d2246a914</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

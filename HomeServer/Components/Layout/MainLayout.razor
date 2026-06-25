@@ -2,6 +2,7 @@
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
 @inject HomeServer.Classes.Services.Theme ThemeService
+@inject HomeServer.Classes.Services.LocalizationService L
 @using HomeServer.Data.Models
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<DataContext> DbFactory
@@ -31,13 +32,13 @@ else
                     @if (isProfilePage)
                     {
                         <button onclick="history.back(); return false;" class="btn btn-sm btn-outline-secondary me-2">
-                            <i class="bi bi-arrow-left"></i> Voltar
+                            <i class="bi bi-arrow-left"></i> @L.T("nav.back")
                         </button>
                     }
                     else @if (isFinanceModule)
                     {
                         <a href="/" class="btn btn-sm btn-outline-secondary me-2">
-                            <i class="bi bi-arrow-left"></i> Voltar ao Menu Principal
+                            <i class="bi bi-arrow-left"></i> @L.T("nav.backToMenu")
                         </a>
                     }
                 </div>
@@ -57,12 +58,12 @@ else
                                 <input type="hidden" name="ReturnUrl" value="" />
                                 <button type="submit" class="btn btn-sm btn-outline-danger border-0 d-inline-flex align-items-center gap-1 py-1">
                                     <i class="bi bi-box-arrow-right"></i>
-                                    <span>Logout</span>
+                                    <span>@L.T("nav.logout")</span>
                                 </button>
                             </form>
                         </Authorized>
                         <NotAuthorized>
-                            <a href="/login" class="btn btn-sm btn-outline-primary">Login</a>
+                            <a href="/login" class="btn btn-sm btn-outline-primary">@L.T("nav.login")</a>
                         </NotAuthorized>
                     </AuthorizeView>
                 </div>
@@ -82,6 +83,7 @@ else
 
     private bool isFinanceModule;
     private bool isProfilePage;
+    private bool themeLoaded = false;
 
     // Deteta se a página atual é a de login
     private bool IsLoginPage => NavigationManager.ToBaseRelativePath(NavigationManager.Uri)
@@ -91,6 +93,7 @@ else
     {
         // Subscreve ao evento do tema de forma segura
         ThemeService.OnThemeChanged += OnThemeChanged;
+        L.OnLanguageChanged += OnThemeChanged; // reutiliza o mesmo handler para re-render
 
         // Subscreve às mudanças de rota
         NavigationManager.LocationChanged += OnLocationChanged;
@@ -107,25 +110,29 @@ else
             var authState = await AuthStateTask;
             var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
 
-            if (!IsLoginPage)
+            if (!IsLoginPage && !isAuthenticated)
             {
-                if (!isAuthenticated)
-                {
-                    // Utilizador não autenticado vai para o login
-                    NavigationManager.NavigateTo("/login");
-                    return;
-                }
+                // Utilizador não autenticado vai para o login
+                NavigationManager.NavigateTo("/login");
+                return;
+            }
 
-                // SE ESTÁ AUTENTICADO: Vamos buscar o tema gravado na BD para este utilizador
+            // SE ESTÁ AUTENTICADO e o tema/língua ainda não foi carregado: vai buscar à BD apenas uma vez
+            if (isAuthenticated && !themeLoaded)
+            {
+                themeLoaded = true;
                 var currentUsername = authState.User.Identity?.Name;
-                if (!string.IsNullOrEmpty(currentUsername) && string.IsNullOrEmpty(ThemeService.CurrentThemeClass))
+                if (!string.IsNullOrEmpty(currentUsername))
                 {
                     using var db = await DbFactory.CreateDbContextAsync();
                     var user = await db.Users.FirstOrDefaultAsync(u => u.Username.ToLower() == currentUsername.ToLower());
-                    if (user != null && !string.IsNullOrEmpty(user.Theme))
+                    if (user != null)
                     {
-                        // Aplica o tema lido da BD globalmente no arranque
-                        ThemeService.SetTheme(user.Theme);
+                        if (!string.IsNullOrEmpty(user.Theme))
+                            ThemeService.SetTheme(user.Theme);
+
+                        if (!string.IsNullOrEmpty(user.Language))
+                            L.SetLanguage(user.Language);
                     }
                 }
             }
@@ -156,6 +163,7 @@ else
     {
         NavigationManager.LocationChanged -= OnLocationChanged;
         ThemeService.OnThemeChanged -= OnThemeChanged;
+        L.OnLanguageChanged -= OnThemeChanged;
     }
    
     private async Task BackButton()
